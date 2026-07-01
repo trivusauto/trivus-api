@@ -1,3 +1,5 @@
+import uuid
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.auth.domain.entities import User
@@ -32,3 +34,19 @@ class SqlAlchemyUserRepository(UserRepository):
         if row:
             row.password_hash = password_hash
             await self._session.flush()
+
+    async def create(self, data: dict[str, object]) -> User:
+        row = UserModel(id=str(uuid.uuid4()), **data)
+        self._session.add(row)
+        await self._session.flush()
+        return _to_domain(row)
+
+    async def list_portal(self) -> list[User]:
+        stmt = select(UserModel).where(UserModel.role == "client", UserModel.parent_store_id.is_(None)).order_by(UserModel.name)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [_to_domain(r) for r in rows]
+
+    async def list_team(self, store_id: str) -> list[User]:
+        stmt = select(UserModel).where(UserModel.parent_store_id == store_id, UserModel.role == "shop_user").order_by(UserModel.name)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [_to_domain(r) for r in rows]
