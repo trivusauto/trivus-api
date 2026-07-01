@@ -3,9 +3,16 @@ from fastapi import APIRouter, Body, Depends
 from src.modules.stores.application.create_store import CreateStoreUseCase
 from src.modules.stores.application.dto import CreateStoreInput
 from src.modules.stores.application.list_stores import ListStoresUseCase
+from src.modules.stores.application.role_labels import GetRoleLabelsUseCase, SetRoleLabelsUseCase
 from src.modules.stores.application.update_store import UpdateStoreUseCase
 from src.modules.stores.domain.entities import Store
-from src.modules.stores.interface.deps import get_create_store_uc, get_list_stores_uc, get_update_store_uc
+from src.modules.stores.interface.deps import (
+    get_create_store_uc,
+    get_list_stores_uc,
+    get_role_labels_uc,
+    get_update_store_uc,
+    set_role_labels_uc,
+)
 from src.modules.stores.interface.schemas import CreateStoreRequest, StoreResponse
 from src.shared.interface.auth_deps import CurrentUser
 from src.shared.interface.rbac import require_roles
@@ -46,3 +53,22 @@ async def update_store(
     uc: UpdateStoreUseCase = Depends(get_update_store_uc),
 ) -> StoreResponse:
     return _resp(await uc.execute(store_id, body))
+
+
+@router.get("/{store_id}/role-labels")
+async def get_role_labels(
+    store_id: str,
+    _: CurrentUser = Depends(require_roles("admin", "client")),
+    uc: GetRoleLabelsUseCase = Depends(get_role_labels_uc),
+) -> dict[str, str]:
+    return await uc.execute(store_id)
+
+
+@router.patch("/{store_id}/role-labels")
+async def set_role_labels_endpoint(
+    store_id: str,
+    body: dict[str, str] = Body(...),
+    _: CurrentUser = Depends(require_roles("admin", "client")),
+    uc: SetRoleLabelsUseCase = Depends(set_role_labels_uc),
+) -> dict[str, str]:
+    return await uc.execute(store_id, body)

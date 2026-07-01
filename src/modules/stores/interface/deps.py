@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.stores.application.create_store import CreateStoreUseCase
 from src.modules.stores.application.list_stores import ListStoresUseCase
+from src.modules.stores.application.role_labels import GetRoleLabelsUseCase, SetRoleLabelsUseCase
 from src.modules.stores.application.update_store import UpdateStoreUseCase
 from src.modules.stores.infrastructure.repository import SqlAlchemyStoreRepository
 from src.shared.infrastructure.database import get_session
@@ -22,3 +23,11 @@ def get_create_store_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> Cre
 
 def get_update_store_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> UpdateStoreUseCase:
     return UpdateStoreUseCase(repo)
+
+
+def get_role_labels_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> GetRoleLabelsUseCase:
+    return GetRoleLabelsUseCase(repo)
+
+
+def set_role_labels_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> SetRoleLabelsUseCase:
+    return SetRoleLabelsUseCase(repo)
