@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: trivus-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trivus
+      POSTGRES_PASSWORD: trivus
+      POSTGRES_DB: trivus
+    ports:
+      - '5433:5432'
+    volumes:
+      - trivus-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U trivus -d trivus']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  trivus-db-data:
