@@ -10,6 +10,8 @@ def _to_domain(row: UserModel) -> User:
         id=str(row.id), email=row.email, name=row.name, role=row.role,
         parent_store_id=str(row.parent_store_id) if row.parent_store_id else None,
         active=row.active, password_hash=row.password_hash,
+        shop_role=row.shop_role, menu_permissions=[str(p) for p in (row.menu_permissions or [])],
+        can_see_unassigned_leads=row.can_see_unassigned_leads,
     )
 
 

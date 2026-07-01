@@ -1,5 +1,5 @@
 from sqlalchemy import Boolean, String
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column
 from src.shared.infrastructure.database import Base
 
@@ -14,3 +14,6 @@ class UserModel(Base):
     parent_store_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     password_hash: Mapped[str | None] = mapped_column(String, nullable=True)
+    shop_role: Mapped[str | None] = mapped_column(String, nullable=True)
+    menu_permissions: Mapped[list[object] | None] = mapped_column(JSONB, nullable=True)
+    can_see_unassigned_leads: Mapped[bool] = mapped_column(Boolean, default=False)
