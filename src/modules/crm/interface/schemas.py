@@ -1,6 +1,11 @@
 from pydantic import BaseModel
 
 
+class CreateTemplateRequest(BaseModel):
+    name: str
+    stages: list[str] = []
+
+
 class CreateStageRequest(BaseModel):
     funnel_id: str
     name: str

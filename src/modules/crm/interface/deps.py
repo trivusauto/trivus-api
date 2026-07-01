@@ -2,6 +2,8 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.crm.application.funnels import CreateStageUseCase, ListFunnelsUseCase, RenameStageUseCase
+from src.modules.crm.application.sync_template import SyncTemplateToClientsUseCase
+from src.modules.crm.application.templates_crud import CreateTemplateUseCase, ListTemplatesUseCase
 from src.modules.crm.infrastructure.repositories import (
     ActivityRepository,
     CoolingRepository,
@@ -43,3 +45,15 @@ def get_activity_repo(session: AsyncSession = Depends(get_session)) -> ActivityR
 
 def get_cooling_repo(session: AsyncSession = Depends(get_session)) -> CoolingRepository:
     return CoolingRepository(session)
+
+
+def get_list_templates_uc(session: AsyncSession = Depends(get_session)) -> ListTemplatesUseCase:
+    return ListTemplatesUseCase(FunnelRepository(session), StageRepository(session))
+
+
+def get_create_template_uc(session: AsyncSession = Depends(get_session)) -> CreateTemplateUseCase:
+    return CreateTemplateUseCase(FunnelRepository(session), StageRepository(session))
+
+
+def get_sync_template_uc(session: AsyncSession = Depends(get_session)) -> SyncTemplateToClientsUseCase:
+    return SyncTemplateToClientsUseCase(FunnelRepository(session), StageRepository(session), CoolingRepository(session), LeadRepository(session))

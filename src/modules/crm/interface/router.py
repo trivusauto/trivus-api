@@ -9,6 +9,8 @@ from src.modules.crm.application.leads import (
 )
 from src.modules.crm.application.move_lead import MoveLeadStageUseCase
 from src.modules.crm.application.patches import SetAgendamentoUseCase, SetCompareceuUseCase, SetFechamentoUseCase
+from src.modules.crm.application.sync_template import SyncTemplateToClientsUseCase
+from src.modules.crm.application.templates_crud import CreateTemplateUseCase, ListTemplatesUseCase
 from src.modules.crm.domain.lead_patch import LeadPatch
 from src.modules.crm.domain.stage_rules import StageRules
 from src.modules.crm.infrastructure.repositories import (
@@ -22,11 +24,14 @@ from src.modules.crm.interface.deps import (
     get_activity_repo,
     get_cooling_repo,
     get_create_stage_uc,
+    get_create_template_uc,
     get_history_repo,
     get_lead_repo,
     get_list_funnels_uc,
+    get_list_templates_uc,
     get_rename_stage_uc,
     get_stage_repo,
+    get_sync_template_uc,
 )
 from src.modules.crm.interface.schemas import (
     AgendamentoRequest,
@@ -34,12 +39,14 @@ from src.modules.crm.interface.schemas import (
     CoolingRuleIn,
     CreateLeadRequest,
     CreateStageRequest,
+    CreateTemplateRequest,
     FechamentoRequest,
     MoveLeadRequest,
     RenameRequest,
     UpdateLeadRequest,
 )
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
+from src.shared.interface.rbac import require_roles
 
 router = APIRouter(prefix="/crm", tags=["crm"])
 
@@ -162,3 +169,30 @@ async def set_cooling_rules(
 ) -> list[dict[str, object]]:
     rules: list[dict[str, object]] = [r.model_dump() for r in body]
     return await repo.save(stage_id, rules)
+
+
+@router.get("/admin/crm/templates")
+async def list_templates(
+    _: CurrentUser = Depends(require_roles("admin")),
+    uc: ListTemplatesUseCase = Depends(get_list_templates_uc),
+) -> list[dict[str, object]]:
+    return await uc.execute()
+
+
+@router.post("/admin/crm/templates", status_code=201)
+async def create_template(
+    body: CreateTemplateRequest,
+    _: CurrentUser = Depends(require_roles("admin")),
+    uc: CreateTemplateUseCase = Depends(get_create_template_uc),
+) -> dict[str, object]:
+    return await uc.execute(body.name, body.stages)
+
+
+@router.post("/admin/crm/templates/{template_id}/sync", status_code=200)
+async def sync_template(
+    template_id: str,
+    _: CurrentUser = Depends(require_roles("admin")),
+    uc: SyncTemplateToClientsUseCase = Depends(get_sync_template_uc),
+) -> dict[str, object]:
+    await uc.execute(template_id)
+    return {"ok": True}
