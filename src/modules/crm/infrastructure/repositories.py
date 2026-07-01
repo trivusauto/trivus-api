@@ -55,6 +55,25 @@ class FunnelRepository:
             select(FunnelModel).where(FunnelModel.store_id == store_id, FunnelModel.template_source_id.isnot(None)).order_by(FunnelModel.sort_order).limit(1)
         )).scalar_one_or_none()
 
+    async def get(self, funnel_id: str) -> FunnelModel | None:
+        return await self._session.get(FunnelModel, funnel_id)
+
+    async def list_templates(self) -> list[FunnelModel]:
+        return list((await self._session.execute(
+            select(FunnelModel).where(FunnelModel.is_template.is_(True)).order_by(FunnelModel.sort_order)
+        )).scalars().all())
+
+    async def list_clones(self, template_id: str) -> list[FunnelModel]:
+        return list((await self._session.execute(
+            select(FunnelModel).where(FunnelModel.template_source_id == template_id)
+        )).scalars().all())
+
+    async def update_name(self, funnel_id: str, name: str) -> None:
+        row = await self._session.get(FunnelModel, funnel_id)
+        if row is not None:
+            row.name = name
+            await self._session.flush()
+
 
 class StageRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -86,6 +105,22 @@ class StageRepository:
         row.name = name
         await self._session.flush()
         return row
+
+    async def update(self, stage_id: str, name: str | None = None, sort_order: int | None = None, template_stage_id: str | None = None) -> None:
+        row = await self._session.get(StageModel, stage_id)
+        if row is None:
+            return
+        if name is not None:
+            row.name = name
+        if sort_order is not None:
+            row.sort_order = sort_order
+        if template_stage_id is not None:
+            row.template_stage_id = template_stage_id
+        await self._session.flush()
+
+    async def delete(self, stage_id: str) -> None:
+        from sqlalchemy import delete as _delete
+        await self._session.execute(_delete(StageModel).where(StageModel.id == stage_id))
 
 
 class LeadRepository:
@@ -134,6 +169,10 @@ class LeadRepository:
             select(func.count()).select_from(LeadModel).where(LeadModel.stage_id == stage_id)
         )).scalar_one())
 
+    async def move_all_from_stage(self, from_stage_id: str, to_stage_id: str) -> None:
+        from sqlalchemy import update as _update
+        await self._session.execute(_update(LeadModel).where(LeadModel.stage_id == from_stage_id).values(stage_id=to_stage_id))
+
 
 class HistoryRepository:
     def __init__(self, session: AsyncSession) -> None:
@@ -180,3 +219,6 @@ class CoolingRepository:
         rules = await self.list_for_stage(src_stage_id)
         if rules:
             await self.save(dst_stage_id, rules)
+
+    async def delete_for_stage(self, stage_id: str) -> None:
+        await self._session.execute(delete(CoolingRuleModel).where(CoolingRuleModel.stage_id == stage_id))
