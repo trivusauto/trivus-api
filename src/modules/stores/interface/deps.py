@@ -1,6 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.crm.application.clone_template import CloneTemplateUseCase
+from src.modules.crm.infrastructure.repositories import CoolingRepository, FunnelRepository, StageRepository
 from src.modules.stores.application.create_store import CreateStoreUseCase
 from src.modules.stores.application.list_stores import ListStoresUseCase
 from src.modules.stores.application.role_labels import GetRoleLabelsUseCase, SetRoleLabelsUseCase
@@ -21,8 +23,12 @@ def get_create_store_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> Cre
     return CreateStoreUseCase(repo)
 
 
-def get_update_store_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> UpdateStoreUseCase:
-    return UpdateStoreUseCase(repo)
+def get_update_store_uc(
+    repo: SqlAlchemyStoreRepository = Depends(_repo),
+    session: AsyncSession = Depends(get_session),
+) -> UpdateStoreUseCase:
+    clone = CloneTemplateUseCase(FunnelRepository(session), StageRepository(session), CoolingRepository(session))
+    return UpdateStoreUseCase(repo, clone)
 
 
 def get_role_labels_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> GetRoleLabelsUseCase:

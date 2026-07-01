@@ -1,0 +1,164 @@
+from fastapi import APIRouter, Depends, Query
+
+from src.modules.crm.application.funnels import CreateStageUseCase, ListFunnelsUseCase, RenameStageUseCase
+from src.modules.crm.application.leads import (
+    CreateLeadUseCase,
+    DeleteLeadUseCase,
+    ListLeadsUseCase,
+    UpdateLeadUseCase,
+)
+from src.modules.crm.application.move_lead import MoveLeadStageUseCase
+from src.modules.crm.application.patches import SetAgendamentoUseCase, SetCompareceuUseCase, SetFechamentoUseCase
+from src.modules.crm.domain.lead_patch import LeadPatch
+from src.modules.crm.domain.stage_rules import StageRules
+from src.modules.crm.infrastructure.repositories import (
+    ActivityRepository,
+    CoolingRepository,
+    HistoryRepository,
+    LeadRepository,
+    StageRepository,
+)
+from src.modules.crm.interface.deps import (
+    get_activity_repo,
+    get_cooling_repo,
+    get_create_stage_uc,
+    get_history_repo,
+    get_lead_repo,
+    get_list_funnels_uc,
+    get_rename_stage_uc,
+    get_stage_repo,
+)
+from src.modules.crm.interface.schemas import (
+    AgendamentoRequest,
+    CompareceuRequest,
+    CoolingRuleIn,
+    CreateLeadRequest,
+    CreateStageRequest,
+    FechamentoRequest,
+    MoveLeadRequest,
+    RenameRequest,
+    UpdateLeadRequest,
+)
+from src.shared.interface.auth_deps import CurrentUser, get_current_user
+
+router = APIRouter(prefix="/crm", tags=["crm"])
+
+
+@router.get("/funnels")
+async def list_funnels(
+    store_id: str = Query(...),
+    _: CurrentUser = Depends(get_current_user),
+    uc: ListFunnelsUseCase = Depends(get_list_funnels_uc),
+) -> list[dict[str, object]]:
+    return await uc.execute(store_id)
+
+
+@router.post("/stages", status_code=201)
+async def create_stage(
+    body: CreateStageRequest,
+    _: CurrentUser = Depends(get_current_user),
+    uc: CreateStageUseCase = Depends(get_create_stage_uc),
+) -> dict[str, object]:
+    return await uc.execute(body.funnel_id, body.name, body.sort_order)
+
+
+@router.patch("/stages/{stage_id}")
+async def rename_stage(
+    stage_id: str,
+    body: RenameRequest,
+    _: CurrentUser = Depends(get_current_user),
+    uc: RenameStageUseCase = Depends(get_rename_stage_uc),
+) -> dict[str, object]:
+    return await uc.execute(stage_id, body.name)
+
+
+@router.get("/leads")
+async def list_leads(
+    store_id: str = Query(...),
+    user: CurrentUser = Depends(get_current_user),
+    repo: LeadRepository = Depends(get_lead_repo),
+) -> list[dict[str, object]]:
+    return await ListLeadsUseCase(repo).execute(store_id, user)
+
+
+@router.post("/leads", status_code=201)
+async def create_lead(
+    body: CreateLeadRequest,
+    _: CurrentUser = Depends(get_current_user),
+    repo: LeadRepository = Depends(get_lead_repo),
+) -> dict[str, object]:
+    return await CreateLeadUseCase(repo).execute(body.model_dump(exclude_none=True))
+
+
+@router.patch("/leads/{lead_id}")
+async def update_lead(
+    lead_id: str,
+    body: UpdateLeadRequest,
+    _: CurrentUser = Depends(get_current_user),
+    repo: LeadRepository = Depends(get_lead_repo),
+) -> dict[str, object]:
+    return await UpdateLeadUseCase(repo).execute(lead_id, body.model_dump(exclude_none=True))
+
+
+@router.delete("/leads/{lead_id}", status_code=204)
+async def delete_lead(
+    lead_id: str,
+    _: CurrentUser = Depends(get_current_user),
+    repo: LeadRepository = Depends(get_lead_repo),
+) -> None:
+    await DeleteLeadUseCase(repo).execute(lead_id)
+
+
+@router.patch("/leads/{lead_id}/stage")
+async def move_lead(
+    lead_id: str,
+    body: MoveLeadRequest,
+    user: CurrentUser = Depends(get_current_user),
+    leads: LeadRepository = Depends(get_lead_repo),
+    stages: StageRepository = Depends(get_stage_repo),
+    history: HistoryRepository = Depends(get_history_repo),
+    activity: ActivityRepository = Depends(get_activity_repo),
+) -> dict[str, object]:
+    uc = MoveLeadStageUseCase(leads, stages, history, activity, StageRules())
+    return await uc.execute(lead_id, body.to_stage_id, user)
+
+
+@router.patch("/leads/{lead_id}/agendamento")
+async def set_agendamento(
+    lead_id: str,
+    body: AgendamentoRequest,
+    user: CurrentUser = Depends(get_current_user),
+    repo: LeadRepository = Depends(get_lead_repo),
+) -> dict[str, object]:
+    return await SetAgendamentoUseCase(repo, LeadPatch()).execute(lead_id, body.data_agendamento, body.hora_agendamento, user)
+
+
+@router.patch("/leads/{lead_id}/comparecimento")
+async def set_comparecimento(
+    lead_id: str,
+    body: CompareceuRequest,
+    _: CurrentUser = Depends(get_current_user),
+    repo: LeadRepository = Depends(get_lead_repo),
+) -> dict[str, object]:
+    return await SetCompareceuUseCase(repo, LeadPatch()).execute(lead_id, body.compareceu)
+
+
+@router.patch("/leads/{lead_id}/fechamento")
+async def set_fechamento(
+    lead_id: str,
+    body: FechamentoRequest,
+    _: CurrentUser = Depends(get_current_user),
+    repo: LeadRepository = Depends(get_lead_repo),
+) -> dict[str, object]:
+    return await SetFechamentoUseCase(repo, LeadPatch()).execute(lead_id, body.receita, body.despesa, body.rentabilidade)
+
+
+@router.put("/stages/{stage_id}/cooling-rules")
+async def set_cooling_rules(
+    stage_id: str,
+    body: list[CoolingRuleIn],
+    _: CurrentUser = Depends(get_current_user),
+    repo: CoolingRepository = Depends(get_cooling_repo),
+) -> list[dict[str, object]]:
+    rules: list[dict[str, object]] = [r.model_dump() for r in body]
+    return await repo.save(stage_id, rules)
