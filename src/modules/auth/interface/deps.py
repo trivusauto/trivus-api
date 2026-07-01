@@ -1,5 +1,6 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.modules.auth.application.get_me import GetMeUseCase
 from src.modules.auth.application.login import LoginUseCase
 from src.modules.auth.infrastructure.password_hasher import Argon2PasswordHasher
 from src.modules.auth.infrastructure.repository import SqlAlchemyUserRepository
@@ -15,3 +16,7 @@ def get_token_service() -> JwtTokenService:
 
 def get_login_use_case(session: AsyncSession = Depends(get_session)) -> LoginUseCase:
     return LoginUseCase(SqlAlchemyUserRepository(session), Argon2PasswordHasher(), get_token_service())
+
+
+def get_me_use_case(session: AsyncSession = Depends(get_session)) -> GetMeUseCase:
+    return GetMeUseCase(SqlAlchemyUserRepository(session))
