@@ -17,5 +17,19 @@ services:
       timeout: 5s
       retries: 5
 
+  api:
+    build: .
+    container_name: trivus-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENV: production
+      DATABASE_URL: postgresql+asyncpg://trivus:trivus@db:5432/trivus
+      JWT_SECRET: dev-change-me
+    ports:
+      - '3001:3001'
+
 volumes:
   trivus-db-data:
