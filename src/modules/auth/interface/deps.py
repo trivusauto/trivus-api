@@ -1,5 +1,6 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
+from src.modules.auth.application.change_password import ChangePasswordUseCase
 from src.modules.auth.application.get_me import GetMeUseCase
 from src.modules.auth.application.login import LoginUseCase
 from src.modules.auth.infrastructure.password_hasher import Argon2PasswordHasher
@@ -20,3 +21,7 @@ def get_login_use_case(session: AsyncSession = Depends(get_session)) -> LoginUse
 
 def get_me_use_case(session: AsyncSession = Depends(get_session)) -> GetMeUseCase:
     return GetMeUseCase(SqlAlchemyUserRepository(session))
+
+
+def get_change_password_use_case(session: AsyncSession = Depends(get_session)) -> ChangePasswordUseCase:
+    return ChangePasswordUseCase(SqlAlchemyUserRepository(session), Argon2PasswordHasher())
