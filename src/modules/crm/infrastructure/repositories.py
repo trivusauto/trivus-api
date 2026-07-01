@@ -1,0 +1,182 @@
+import uuid
+from datetime import datetime, timezone
+
+from sqlalchemy import delete, func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src.modules.crm.infrastructure.orm import (
+    ActivityModel,
+    CoolingRuleModel,
+    FunnelModel,
+    LeadModel,
+    StageHistoryModel,
+    StageModel,
+)
+from src.shared.domain.errors import NotFoundError
+
+
+def lead_to_dict(r: LeadModel) -> dict[str, object]:
+    d: dict[str, object] = {c.name: getattr(r, c.name) for c in r.__table__.columns}
+    d["id"] = str(d["id"])
+    for k in ("data_agendamento", "data_marcacao_agendamento", "data_compareceu", "data_fechou_negocio", "created_at", "updated_at"):
+        v = d.get(k)
+        if v is not None and hasattr(v, "isoformat"):
+            d[k] = v.isoformat()
+    for k in ("valor_tabela_fipe", "saldo_quitacao", "valor_pretendido", "valor_compra", "receita", "despesa", "rentabilidade"):
+        if d.get(k) is not None:
+            d[k] = float(d[k])  # type: ignore[arg-type]
+    return d
+
+
+class FunnelRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_for_store(self, store_id: str) -> list[FunnelModel]:
+        return list((await self._session.execute(
+            select(FunnelModel).where(FunnelModel.store_id == store_id).order_by(FunnelModel.sort_order)
+        )).scalars().all())
+
+    async def create(
+        self, store_id: str | None, name: str, sort_order: int = 0, is_template: bool = False, template_source_id: str | None = None
+    ) -> FunnelModel:
+        row = FunnelModel(id=str(uuid.uuid4()), store_id=store_id, name=name, sort_order=sort_order, is_template=is_template, template_source_id=template_source_id)
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def first_template(self) -> FunnelModel | None:
+        return (await self._session.execute(
+            select(FunnelModel).where(FunnelModel.is_template.is_(True)).order_by(FunnelModel.sort_order).limit(1)
+        )).scalar_one_or_none()
+
+    async def first_clone(self, store_id: str) -> FunnelModel | None:
+        return (await self._session.execute(
+            select(FunnelModel).where(FunnelModel.store_id == store_id, FunnelModel.template_source_id.isnot(None)).order_by(FunnelModel.sort_order).limit(1)
+        )).scalar_one_or_none()
+
+
+class StageRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_for_funnel(self, funnel_id: str) -> list[StageModel]:
+        return list((await self._session.execute(
+            select(StageModel).where(StageModel.funnel_id == funnel_id).order_by(StageModel.sort_order)
+        )).scalars().all())
+
+    async def first_of_funnel(self, funnel_id: str) -> StageModel | None:
+        return (await self._session.execute(
+            select(StageModel).where(StageModel.funnel_id == funnel_id).order_by(StageModel.sort_order).limit(1)
+        )).scalar_one_or_none()
+
+    async def get(self, stage_id: str) -> StageModel | None:
+        return await self._session.get(StageModel, stage_id)
+
+    async def create(self, funnel_id: str, name: str, sort_order: int = 0, template_stage_id: str | None = None) -> StageModel:
+        row = StageModel(id=str(uuid.uuid4()), funnel_id=funnel_id, name=name, sort_order=sort_order, template_stage_id=template_stage_id)
+        self._session.add(row)
+        await self._session.flush()
+        return row
+
+    async def rename(self, stage_id: str, name: str) -> StageModel:
+        row = await self._session.get(StageModel, stage_id)
+        if row is None:
+            raise NotFoundError("Etapa não encontrada")
+        row.name = name
+        await self._session.flush()
+        return row
+
+
+class LeadRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_for_board(self, store_id: str, user: object) -> list[dict[str, object]]:
+        stmt = select(LeadModel).where(LeadModel.store_id == store_id)
+        if getattr(user, "role", None) == "shop_user":
+            stmt = stmt.where(LeadModel.assigned_to == getattr(user, "user_id", None))
+        stmt = stmt.order_by(LeadModel.stage_id, LeadModel.sort_order)
+        rows = (await self._session.execute(stmt)).scalars().all()
+        return [lead_to_dict(r) for r in rows]
+
+    async def get(self, lead_id: str) -> dict[str, object] | None:
+        r = await self._session.get(LeadModel, lead_id)
+        return lead_to_dict(r) if r else None
+
+    async def get_or_raise(self, lead_id: str) -> dict[str, object]:
+        d = await self.get(lead_id)
+        if d is None:
+            raise NotFoundError("Lead não encontrado")
+        return d
+
+    async def create(self, data: dict[str, object]) -> dict[str, object]:
+        row = LeadModel(id=str(uuid.uuid4()), **data)
+        self._session.add(row)
+        await self._session.flush()
+        return lead_to_dict(row)
+
+    async def update(self, lead_id: str, data: dict[str, object]) -> dict[str, object]:
+        row = await self._session.get(LeadModel, lead_id)
+        if row is None:
+            raise NotFoundError("Lead não encontrado")
+        for k, v in data.items():
+            setattr(row, k, v)
+        row.updated_at = datetime.now(timezone.utc)
+        await self._session.flush()
+        return lead_to_dict(row)
+
+    async def delete(self, lead_id: str) -> None:
+        await self._session.execute(delete(LeadModel).where(LeadModel.id == lead_id))
+
+    async def count_in_stage(self, stage_id: str) -> int:
+        return int((await self._session.execute(
+            select(func.count()).select_from(LeadModel).where(LeadModel.stage_id == stage_id)
+        )).scalar_one())
+
+
+class HistoryRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def record(self, lead_id: str, stage_id: str) -> None:
+        self._session.add(StageHistoryModel(id=str(uuid.uuid4()), lead_id=lead_id, stage_id=stage_id))
+        await self._session.flush()
+
+
+class ActivityRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def log(self, store_id: str, actor_user_id: str | None, action: str, entity_type: str | None = None, entity_id: str | None = None) -> None:
+        self._session.add(ActivityModel(id=str(uuid.uuid4()), store_id=store_id, actor_user_id=actor_user_id, action=action, entity_type=entity_type, entity_id=entity_id))
+        await self._session.flush()
+
+
+class CoolingRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def list_for_stage(self, stage_id: str) -> list[dict[str, object]]:
+        rows = (await self._session.execute(
+            select(CoolingRuleModel).where(CoolingRuleModel.stage_id == stage_id).order_by(CoolingRuleModel.hours_threshold)
+        )).scalars().all()
+        return [{"id": str(r.id), "hours_threshold": r.hours_threshold, "card_color": r.card_color, "message": r.message, "sort_order": r.sort_order} for r in rows]
+
+    async def save(self, stage_id: str, rules: list[dict[str, object]]) -> list[dict[str, object]]:
+        await self._session.execute(delete(CoolingRuleModel).where(CoolingRuleModel.stage_id == stage_id))
+        for i, r in enumerate(rules or []):
+            self._session.add(CoolingRuleModel(
+                id=str(uuid.uuid4()), stage_id=stage_id,
+                hours_threshold=int(str(r["hours_threshold"])),
+                card_color=str(r.get("card_color") or "#facc15"),
+                message=str(r.get("message") or "Lead esfriando"),
+                sort_order=i,
+            ))
+        await self._session.flush()
+        return await self.list_for_stage(stage_id)
+
+    async def copy(self, src_stage_id: str, dst_stage_id: str) -> None:
+        rules = await self.list_for_stage(src_stage_id)
+        if rules:
+            await self.save(dst_stage_id, rules)
