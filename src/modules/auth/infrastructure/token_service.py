@@ -14,4 +14,5 @@ class JwtTokenService(TokenService):
         return jwt.encode(payload, self._secret, algorithm="HS256")
 
     def verify(self, token: str) -> dict[str, object]:
-        return jwt.decode(token, self._secret, algorithms=["HS256"])  # type: ignore[return-value]
+        result: dict[str, object] = jwt.decode(token, self._secret, algorithms=["HS256"])
+        return result
