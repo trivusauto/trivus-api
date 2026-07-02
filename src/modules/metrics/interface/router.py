@@ -7,7 +7,7 @@ from src.modules.metrics.application.reports import ReportUseCase
 from src.modules.metrics.domain.team import build_team_performance
 from src.modules.metrics.infrastructure.reader import MetricsLeadReader
 from src.modules.metrics.interface.deps import (
-    get_accessible_uc, get_dashboard_uc, get_marketing_uc,
+    get_accessible_uc, get_dashboard_uc, get_indicators_report_uc, get_marketing_uc,
     get_projections_uc, get_report_uc, get_store_repo, get_user_repo,
 )
 from src.modules.stores.application.get_accessible_stores import GetAccessibleStoreIdsUseCase
@@ -86,6 +86,25 @@ async def marketing(
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
 ) -> dict[str, object]:
     return await uc.execute(await _resolve(user, store_id, access, stores), start, end)
+
+
+@router.get("/indicators-report")
+async def indicators_report(
+    store_id: str = Query(...),
+    date_from: str = Query(..., alias="from"),
+    date_to: str = Query(..., alias="to"),
+    year: int = Query(...),
+    month: int = Query(...),
+    user: CurrentUser = Depends(get_current_user),
+    access: GetAccessibleStoreIdsUseCase = Depends(get_accessible_uc),
+    uc: object = Depends(get_indicators_report_uc),
+) -> dict[str, object]:
+    scope = await access.execute(user)
+    if scope is not None and store_id not in scope:
+        raise DomainError("Loja fora do escopo.")
+    from src.modules.metrics.application.indicators_report import IndicatorsReportUseCase
+    assert isinstance(uc, IndicatorsReportUseCase)
+    return await uc.execute(store_id, date_from, date_to, year, month)
 
 
 @router.get("/team")

@@ -39,3 +39,10 @@ def get_user_repo(session: AsyncSession = Depends(get_session)) -> SqlAlchemyUse
 
 def get_store_repo(session: AsyncSession = Depends(get_session)) -> SqlAlchemyStoreRepository:
     return SqlAlchemyStoreRepository(session)
+
+
+def get_indicators_report_uc(session: AsyncSession = Depends(get_session)) -> object:
+    from src.modules.metrics.application.indicators_report import IndicatorsReportUseCase
+    from src.modules.indicators.infrastructure.repository import IndicatorRepository
+    from src.modules.goals.infrastructure.repository import GoalRepository
+    return IndicatorsReportUseCase(IndicatorRepository(session), GoalRepository(session))
