@@ -5,6 +5,7 @@ from src.modules.crm.interface.router import router as crm_router
 from src.modules.stores.interface.router import router as stores_router
 from src.modules.users.interface.router import router as users_router
 from src.modules.agenda.interface.router import router as agenda_router
+from src.modules.metrics.interface.router import router as metrics_router
 from src.modules.webhook.interface.router import router as webhook_router
 from src.shared.interface.error_handlers import register_error_handlers
 
@@ -19,6 +20,7 @@ def create_app() -> FastAPI:
     app.include_router(users_router)
     app.include_router(webhook_router)
     app.include_router(agenda_router)
+    app.include_router(metrics_router)
     return app
 
 
