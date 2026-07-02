@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import TypedDict
 
 
@@ -124,3 +124,62 @@ def build_report_processed(
         },
         "byOrigin": by,
     }
+
+
+def _month_key(ymd: str | None) -> str | None:
+    if not ymd:
+        return None
+    return f"{int(ymd[5:7])}/{int(ymd[0:4])}"
+
+
+class _MonthStats(TypedDict):
+    leads: int
+    qualified: int
+    scheduled: int
+    attended: int
+    conversions: int
+    profitability: float
+
+
+def build_monthly_series(
+    leads: list[dict[str, object]], month_keys: list[str], passed_qualificados: object = None
+) -> dict[str, _MonthStats]:
+    acc: dict[str, _MonthStats] = {
+        k: _MonthStats(leads=0, qualified=0, scheduled=0, attended=0, conversions=0, profitability=0.0)
+        for k in month_keys
+    }
+    for lead in leads:
+        mk = _month_key(to_local_ymd(lead.get("created_at")))
+        if mk in acc:
+            acc[mk]["leads"] += 1
+            if callable(passed_qualificados) and passed_qualificados(lead):
+                acc[mk]["qualified"] += 1
+        if _has_appointment(lead):
+            mks = _month_key(_schedule_marked_ymd(lead))
+            if mks in acc:
+                acc[mks]["scheduled"] += 1
+        if lead.get("compareceu_agendamento") is True:
+            mkc = _month_key(date_col_to_ymd(lead.get("data_compareceu")))
+            if mkc in acc:
+                acc[mkc]["attended"] += 1
+        if lead.get("fechou_negocio") is True:
+            mkf = _month_key(date_col_to_ymd(lead.get("data_fechou_negocio")))
+            if mkf in acc:
+                acc[mkf]["conversions"] += 1
+                r = lead.get("rentabilidade")
+                if r is not None:
+                    acc[mkf]["profitability"] += float(r)  # type: ignore[arg-type]
+    return acc
+
+
+def last_month_keys(now: date, count: int) -> list[str]:
+    keys = []
+    y, m = now.year, now.month
+    for i in range(count - 1, -1, -1):
+        mm = m - i
+        yy = y
+        while mm <= 0:
+            mm += 12
+            yy -= 1
+        keys.append(f"{mm}/{yy}")
+    return keys

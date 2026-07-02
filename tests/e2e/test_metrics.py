@@ -15,7 +15,7 @@ async def test_dashboard_empty(client: AsyncClient) -> None:
     store_id = created.json()["id"]
     res = await client.get(f"/metrics/dashboard?store_id={store_id}&start=2026-01-01&end=2026-12-31", headers=headers)
     assert res.status_code == 200
-    assert res.json()["total_leads"] == 0
+    assert res.json()["totals"]["total_leads"] == 0
 
 
 @pytest.mark.asyncio
