@@ -97,3 +97,17 @@ async def test_duplicate() -> None:
     leads = Leads(dup=type("L", (), {"id": "old", "lid": None, "telefone": "44999999999"})())
     res = await _uc(leads=leads).execute("tok", {"phone": "5544999999999@c.us"})
     assert res["skipped"] == "duplicate"
+
+
+class MatcherHit:
+    async def match(self, store_id: str, body: dict[str, object]) -> str:
+        return "camp1"
+
+
+@pytest.mark.asyncio
+async def test_creates_lead_with_campaign() -> None:
+    leads = Leads()
+    uc = HandleZapiWebhookUseCase(Stores(), leads, Funnels(), Stages(), LeadsCount(), Users(), History(),
+                                  Phone(), RoundRobin(), campaign_matcher=MatcherHit())
+    await uc.execute("tok", {"phone": "5544999999999@c.us"})
+    assert leads.created is not None and leads.created["campaign_id"] == "camp1"

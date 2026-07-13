@@ -17,6 +17,7 @@ class HandleZapiWebhookUseCase:
         history: HistoryRepository,
         phone: Phone,
         round_robin: RoundRobin,
+        campaign_matcher: object = None,
     ) -> None:
         self._stores = stores
         self._leads = leads
@@ -27,6 +28,7 @@ class HandleZapiWebhookUseCase:
         self._history = history
         self._phone = phone
         self._rr = round_robin
+        self._campaign_matcher = campaign_matcher
 
     async def execute(self, token: str, body: dict[str, object]) -> dict[str, object]:
         store = await self._stores.get_by_webhook_token(token)
@@ -64,6 +66,10 @@ class HandleZapiWebhookUseCase:
             assigned_to = self._rr.pick_next(eligible, store.last_assigned_sdr_id)
             await self._stores.update_last_sdr(store.id, assigned_to)
 
+        campaign_id: str | None = None
+        if self._campaign_matcher is not None:
+            campaign_id = await self._campaign_matcher.match(store.id, body)  # type: ignore[attr-defined]
+
         sort_order = await self._count.count_in_stage(stage.id)
         lead: LeadModel = await self._leads.create({
             "stage_id": stage.id,
@@ -74,6 +80,7 @@ class HandleZapiWebhookUseCase:
             "sort_order": sort_order,
             "assigned_to": assigned_to,
             "funil": "receptivo",
+            "campaign_id": campaign_id,
         })
         await self._history.record(str(lead.id), stage.id)
         return {"ok": True, "lead_id": str(lead.id), "assigned_to": assigned_to}

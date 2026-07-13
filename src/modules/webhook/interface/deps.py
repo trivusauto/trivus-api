@@ -2,6 +2,7 @@ from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.crm.infrastructure.repositories import FunnelRepository, HistoryRepository, LeadRepository, StageRepository
+from src.modules.marketing.infrastructure.matcher import CampaignMatcher
 from src.modules.webhook.application.handle_zapi import HandleZapiWebhookUseCase
 from src.modules.webhook.domain.phone import Phone
 from src.modules.webhook.domain.round_robin import RoundRobin
@@ -20,4 +21,5 @@ def get_handle_zapi_uc(session: AsyncSession = Depends(get_session)) -> HandleZa
         HistoryRepository(session),
         Phone(),
         RoundRobin(),
+        CampaignMatcher(session),
     )
