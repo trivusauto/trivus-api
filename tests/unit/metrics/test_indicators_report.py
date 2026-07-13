@@ -30,3 +30,17 @@ def test_goals_comparison() -> None:
     assert gc["origin"] == "Receptivo"
     assert gc["Meta Conversões"] == 5 and gc["Real Conversões"] == 2
     assert gc["Meta Receita"] == 3000 and gc["Real Receita"] == 1000
+
+
+def test_classified_investment_and_costs() -> None:
+    indicators = [ind(origin="receptivo", total_leads=10, classified_leads=8, converted_leads=2,
+                      profitability=1000, daily_expenses=0, marketing_investment=500)]
+    goals = [{"origin": "receptivo", "conversions_quantity": 5, "profitability_goal": 3000,
+              "marketing_investment_goal": 600}]
+    res = build_indicators_report(indicators, goals)
+    assert res["summary"]["classified"] == 8
+    assert res["investment"] == 500
+    assert res["costs"]["cost_per_lead"] == 50.0
+    assert res["costs"]["cac"] == 250.0
+    gc = res["goalsComparison"][0]
+    assert gc["Meta Investimento"] == 600 and gc["Real Investimento"] == 500
