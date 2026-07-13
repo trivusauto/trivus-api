@@ -12,7 +12,7 @@ def _to_dict(r: DailyIndicatorModel) -> dict[str, object]:
     d["reference_date"] = str(d["reference_date"].isoformat())  # type: ignore[attr-defined]
     if d.get("created_at") is not None:
         d["created_at"] = str(d["created_at"].isoformat())  # type: ignore[attr-defined]
-    for k in ("profitability", "daily_expenses"):
+    for k in ("profitability", "daily_expenses", "marketing_investment"):
         if d.get(k) is not None:
             d[k] = float(d[k])  # type: ignore[arg-type]
     return d

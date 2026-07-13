@@ -8,7 +8,7 @@ from src.modules.goals.infrastructure.orm import GoalModel
 def _to_dict(r: GoalModel) -> dict[str, object]:
     d: dict[str, object] = {c.name: getattr(r, c.name) for c in r.__table__.columns}
     d["id"] = str(d["id"])
-    for k in ("profitability_goal", "average_ticket_goal"):
+    for k in ("profitability_goal", "average_ticket_goal", "marketing_investment_goal"):
         if d.get(k) is not None:
             d[k] = float(d[k])  # type: ignore[arg-type]
     return d

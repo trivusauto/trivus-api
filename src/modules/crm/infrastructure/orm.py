@@ -69,6 +69,7 @@ class LeadModel(Base):
     assigned_to: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
     vendedor_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
     agendado_por: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
+    campaign_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
     funil: Mapped[str | None] = mapped_column(String, nullable=True)
     qualificado: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
     origem_mkt: Mapped[str | None] = mapped_column(String, nullable=True)

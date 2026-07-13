@@ -18,3 +18,4 @@ class GoalModel(Base):
     conversions_quantity: Mapped[int] = mapped_column(Integer, default=0)
     profitability_goal: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     average_ticket_goal: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    marketing_investment_goal: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
