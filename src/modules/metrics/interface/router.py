@@ -53,12 +53,13 @@ async def reports(
     store_id: str | None = Query(None),
     start: str = Query(...),
     end: str = Query(...),
+    campaign_id: str | None = Query(None),
     user: CurrentUser = Depends(get_current_user),
     uc: ReportUseCase = Depends(get_report_uc),
     access: GetAccessibleStoreIdsUseCase = Depends(get_accessible_uc),
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
 ) -> dict[str, object]:
-    return await uc.execute(await _resolve(user, store_id, access, stores), start, end)
+    return await uc.execute(await _resolve(user, store_id, access, stores), start, end, campaign_id)
 
 
 @router.get("/projections")

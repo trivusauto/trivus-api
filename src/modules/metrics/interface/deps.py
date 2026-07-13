@@ -5,6 +5,7 @@ from src.modules.metrics.application.dashboard import DashboardUseCase
 from src.modules.metrics.application.projections import ProjectionsUseCase
 from src.modules.metrics.application.reports import ReportUseCase
 from src.modules.metrics.domain.working_days import WorkingDays
+from src.modules.metrics.infrastructure.investment_reader import InvestmentReader
 from src.modules.metrics.infrastructure.reader import MetricsLeadReader
 from src.modules.metrics.infrastructure.stage_reach_reader import StageReachReader
 from src.modules.stores.application.get_accessible_stores import GetAccessibleStoreIdsUseCase
@@ -17,7 +18,7 @@ def get_dashboard_uc(session: AsyncSession = Depends(get_session)) -> DashboardU
 
 
 def get_report_uc(session: AsyncSession = Depends(get_session)) -> ReportUseCase:
-    return ReportUseCase(MetricsLeadReader(session), StageReachReader(session))
+    return ReportUseCase(MetricsLeadReader(session), StageReachReader(session), InvestmentReader(session))
 
 
 def get_projections_uc(session: AsyncSession = Depends(get_session)) -> ProjectionsUseCase:

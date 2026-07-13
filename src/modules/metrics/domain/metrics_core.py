@@ -53,6 +53,7 @@ class _Totals(TypedDict):
 
 class _OriginStats(TypedDict):
     total: int
+    classified: int
     qualified: int
     scheduled: int
     attended: int
@@ -82,16 +83,19 @@ def aggregate_totals_for_range(
 
 
 def aggregate_by_origin_for_range(
-    leads: list[dict[str, object]], start: str, end: str, passed_qualificados: object = None
+    leads: list[dict[str, object]], start: str, end: str,
+    passed_qualificados: object = None, passed_classificados: object = None,
 ) -> dict[str, _OriginStats]:
     def empty() -> _OriginStats:
-        return _OriginStats(total=0, qualified=0, scheduled=0, attended=0, converted=0, revenue=0.0)
+        return _OriginStats(total=0, classified=0, qualified=0, scheduled=0, attended=0, converted=0, revenue=0.0)
 
     by: dict[str, _OriginStats] = {"receptivo": empty(), "prospeccao": empty(), "outros": empty()}
     for lead in leads:
         b = by[normalize_funil_key(lead.get("funil"))]
         if ymd_in_range(to_local_ymd(lead.get("created_at")), start, end):
             b["total"] += 1
+            if callable(passed_classificados) and passed_classificados(lead):
+                b["classified"] += 1
             if callable(passed_qualificados) and passed_qualificados(lead):
                 b["qualified"] += 1
         if _has_appointment(lead) and ymd_in_range(_schedule_marked_ymd(lead), start, end):
@@ -107,14 +111,27 @@ def aggregate_by_origin_for_range(
 
 
 def build_report_processed(
-    leads: list[dict[str, object]], start: str, end: str, passed_qualificados: object = None
+    leads: list[dict[str, object]], start: str, end: str,
+    passed_qualificados: object = None, passed_classificados: object = None,
+    investment: float | None = None,
 ) -> dict[str, object]:
-    by = aggregate_by_origin_for_range(leads, start, end, passed_qualificados)
+    by = aggregate_by_origin_for_range(leads, start, end, passed_qualificados, passed_classificados)
     total_converted = sum(by[o]["converted"] for o in by)
     total_revenue = sum(by[o]["revenue"] for o in by)
+    inv = float(investment or 0)
+    r = by["receptivo"]  # custos só sobre o receptivo (prospecção não tem investimento de mídia)
+    costs = {
+        "cost_per_lead": unit_cost(inv, r["total"]),
+        "cost_per_classified": unit_cost(inv, r["classified"]),
+        "cost_per_qualified": unit_cost(inv, r["qualified"]),
+        "cost_per_scheduled": unit_cost(inv, r["scheduled"]),
+        "cost_per_attended": unit_cost(inv, r["attended"]),
+        "cac": unit_cost(inv, r["converted"]),
+    }
     return {
         "summary": {
             "totalLeads": sum(by[o]["total"] for o in by),
+            "classified": sum(by[o]["classified"] for o in by),
             "qualified": sum(by[o]["qualified"] for o in by),
             "scheduled": sum(by[o]["scheduled"] for o in by),
             "attended": sum(by[o]["attended"] for o in by),
@@ -123,6 +140,8 @@ def build_report_processed(
             "avgTicket": (total_revenue / total_converted) if total_converted > 0 else 0.0,
         },
         "byOrigin": by,
+        "costs": costs,
+        "investment": inv,
     }
 
 
