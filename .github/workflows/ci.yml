@@ -1,8 +1,10 @@
 name: CI
+
 on:
   push:
     branches: ['**']
   pull_request:
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -15,12 +17,32 @@ jobs:
           --health-cmd "pg_isready -U trivus -d trivus" --health-interval 5s --health-timeout 5s --health-retries 5
     env:
       DATABASE_URL: postgresql+asyncpg://trivus:trivus@localhost:5432/trivus
-      JWT_SECRET: ci-secret
+      JWT_SECRET: ci-secret-0123456789abcdef0123456789abcdef
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v3
       - run: uv sync --frozen
       - run: uv run alembic upgrade head
+      - run: uv run python -m scripts.seed_admin   # os e2e dependem do admin seedado
       - run: uv run ruff check .
       - run: uv run mypy src
       - run: uv run pytest
+
+  deploy:
+    name: Deploy (Coolify)
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Coolify deploy webhook
+        env:
+          WEBHOOK_URL: ${{ secrets.COOLIFY_WEBHOOK_URL }}
+          TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo "::notice::COOLIFY_WEBHOOK_URL não configurado — pulando deploy."
+            exit 0
+          fi
+          curl --fail-with-body -sS -X GET "$WEBHOOK_URL" \
+            -H "Authorization: Bearer $TOKEN"
+          echo "Deploy disparado no Coolify."
