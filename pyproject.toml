@@ -1,7 +1,7 @@
 [project]
-name = "trivus-backend"
+name = "trivus-api"
 version = "0.1.0"
-description = "Add your description here"
+description = "Trivus API — plataforma do ecossistema Trivus (FastAPI, hexagonal/DDD)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

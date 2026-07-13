@@ -1118,7 +1118,7 @@ wheels = [
 ]
 
 [[package]]
-name = "trivus-backend"
+name = "trivus-api"
 version = "0.1.0"
 source = { virtual = "." }
 dependencies = [

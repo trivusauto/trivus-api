@@ -18,8 +18,10 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('stores', sa.Column('last_assigned_sdr_id', postgresql.UUID(), nullable=True))
+    # A initial_schema passou a incluir esta coluna; IF NOT EXISTS mantém
+    # compatibilidade tanto com bancos antigos quanto com installs do zero.
+    op.execute("ALTER TABLE stores ADD COLUMN IF NOT EXISTS last_assigned_sdr_id uuid")
 
 
 def downgrade() -> None:
-    op.drop_column('stores', 'last_assigned_sdr_id')
+    op.execute("ALTER TABLE stores DROP COLUMN IF EXISTS last_assigned_sdr_id")
