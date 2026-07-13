@@ -76,6 +76,8 @@ uv run mypy src        # tipos (strict)
 
 ## Deploy (Coolify)
 
+> 📘 **Guia completo passo a passo: [docs/DEPLOY_COOLIFY.md](docs/DEPLOY_COOLIFY.md)** (banco, envs, webhook, secrets, primeiro boot, troubleshooting e rollback).
+
 O deploy é **automático**: todo push na `main` roda o CI (lint + tipos + 154 testes) e, se verde, o job `deploy` dispara o webhook do Coolify, que rebuilda a aplicação pelo `Dockerfile` (as migrations rodam no boot do container).
 
 ### Configuração inicial no Coolify (uma vez)
