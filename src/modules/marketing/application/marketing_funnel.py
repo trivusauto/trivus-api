@@ -62,7 +62,7 @@ class MarketingFunnelUseCase:
             return
         goals = await self._goals.list(store_ids[0], int(start[:4]), int(start[5:7]))
         receptivo_goal: dict[str, object] = next(
-            (g for g in goals if g.get("origin") == "receptivo"), None) or {}
+            (g for g in goals if g.get("origin") == "receptivo"), {})
         for st in stages:
             field = _GOAL_FIELD.get(str(st["stage"]))
             goal = float(receptivo_goal.get(field) or 0) if field else 0.0  # type: ignore[arg-type]
