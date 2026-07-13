@@ -1,3 +1,5 @@
+from typing import cast
+
 from src.shared.domain.errors import DomainError
 
 _STATUSES = ("trialing", "active", "suspended", "canceled")
@@ -20,7 +22,7 @@ class CreateSubscriptionUseCase:
             n = await self._company_stores.count_stores(data["company_id"])
             if n > int(max_stores):
                 raise DomainError(f"O plano permite {max_stores} lojas; a empresa tem {n}.")
-        return await self._subs.create({"billing_mode": "manual", **data})
+        return cast(dict[str, object], await self._subs.create({"billing_mode": "manual", **data}))
 
 
 class ChangeSubscriptionStatusUseCase:
@@ -32,7 +34,7 @@ class ChangeSubscriptionStatusUseCase:
     async def execute(self, subscription_id: str, status: str) -> dict[str, object]:
         if status not in _STATUSES:
             raise DomainError("Status inválido.")
-        return await self._subs.update(subscription_id, {"status": status})
+        return cast(dict[str, object], await self._subs.update(subscription_id, {"status": status}))
 
 
 class ChangeSubscriptionPlanUseCase:
@@ -42,4 +44,4 @@ class ChangeSubscriptionPlanUseCase:
 
     async def execute(self, subscription_id: str, plan_id: str) -> dict[str, object]:
         await self._plans.get_or_raise(plan_id)
-        return await self._subs.update(subscription_id, {"plan_id": plan_id})
+        return cast(dict[str, object], await self._subs.update(subscription_id, {"plan_id": plan_id}))

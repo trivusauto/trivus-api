@@ -9,6 +9,7 @@ from src.modules.ecosystem.infrastructure.orm import (
     StoreServiceModel, SubscriptionModel, SubscriptionPaymentModel,
 )
 from src.shared.domain.errors import NotFoundError
+from src.shared.infrastructure.database import Base
 
 
 def _row_to_dict(row: object) -> dict[str, object]:
@@ -24,7 +25,7 @@ def _row_to_dict(row: object) -> dict[str, object]:
 
 
 class _CrudRepo:
-    model: ClassVar[type]
+    model: ClassVar[type[Base]]
 
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
@@ -36,7 +37,7 @@ class _CrudRepo:
     async def get_or_raise(self, obj_id: str) -> dict[str, object]:
         d = await self.get(obj_id)
         if d is None:
-            raise NotFoundError(f"{self.model.__tablename__}: não encontrado")
+            raise NotFoundError(f"{getattr(self.model, '__tablename__', self.model.__name__)}: não encontrado")
         return d
 
     async def create(self, data: dict[str, object]) -> dict[str, object]:
@@ -48,7 +49,7 @@ class _CrudRepo:
     async def update(self, obj_id: str, data: dict[str, object]) -> dict[str, object]:
         row = await self._session.get(self.model, obj_id)
         if row is None:
-            raise NotFoundError(f"{self.model.__tablename__}: não encontrado")
+            raise NotFoundError(f"{getattr(self.model, '__tablename__', self.model.__name__)}: não encontrado")
         for k, v in data.items():
             setattr(row, k, v)
         await self._session.flush()

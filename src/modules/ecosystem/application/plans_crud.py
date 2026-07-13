@@ -14,7 +14,7 @@ class CreatePlanUseCase:
         for key in cast(list[str], data.get("service_keys") or []):
             if await self._services.get_by_key(key) is None:
                 raise DomainError(f"Serviço inexistente no catálogo: {key}")
-        return await self._plans.create(data)
+        return cast(dict[str, object], await self._plans.create(data))
 
 
 class UpdatePlanUseCase:
@@ -29,4 +29,4 @@ class UpdatePlanUseCase:
             for key in cast(list[str], data["service_keys"] or []):
                 if await self._services.get_by_key(key) is None:
                     raise DomainError(f"Serviço inexistente no catálogo: {key}")
-        return await self._plans.update(plan_id, data)
+        return cast(dict[str, object], await self._plans.update(plan_id, data))
