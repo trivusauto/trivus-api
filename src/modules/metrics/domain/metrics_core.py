@@ -183,3 +183,21 @@ def last_month_keys(now: date, count: int) -> list[str]:
             yy -= 1
         keys.append(f"{mm}/{yy}")
     return keys
+
+
+def unit_cost(investment: float | None, qty: int) -> float | None:
+    inv = float(investment or 0)
+    return (inv / qty) if inv > 0 and qty > 0 else None
+
+
+def traffic_light(value: float, goal: float | None) -> str:
+    """Sinaleiro: verde >=100% da meta, amarelo >=80%, vermelho <80%, cinza sem meta (D4)."""
+    g = float(goal or 0)
+    if g <= 0:
+        return "gray"
+    pct = value / g * 100
+    if pct >= 100:
+        return "green"
+    if pct >= 80:
+        return "yellow"
+    return "red"
