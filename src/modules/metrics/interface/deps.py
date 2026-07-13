@@ -22,7 +22,9 @@ def get_report_uc(session: AsyncSession = Depends(get_session)) -> ReportUseCase
 
 
 def get_projections_uc(session: AsyncSession = Depends(get_session)) -> ProjectionsUseCase:
-    return ProjectionsUseCase(MetricsLeadReader(session), WorkingDays())
+    from src.modules.goals.infrastructure.repository import GoalRepository
+    return ProjectionsUseCase(MetricsLeadReader(session), WorkingDays(), StageReachReader(session),
+                              GoalRepository(session))
 
 
 def get_accessible_uc(session: AsyncSession = Depends(get_session)) -> GetAccessibleStoreIdsUseCase:
