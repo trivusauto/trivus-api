@@ -33,9 +33,11 @@ class MarketingFunnelUseCase:
         totals = aggregate_totals_for_range(receptive, start, end, q_ctx.passed)
         classified = sum(1 for lead in receptive
                          if ymd_in_range(to_local_ymd(lead.get("created_at")), start, end) and c_ctx.passed(lead))
-        quantities = {"leads": int(totals["total_leads"]), "classified": classified,
-                      "qualified": int(totals["qualified_leads"]), "scheduled": int(totals["scheduled"]),
-                      "attended": int(totals["attended"]), "sales": int(totals["conversions"])}
+        quantities = {"leads": cast(int, totals["total_leads"]), "classified": classified,
+                      "qualified": cast(int, totals["qualified_leads"]),
+                      "scheduled": cast(int, totals["scheduled"]),
+                      "attended": cast(int, totals["attended"]),
+                      "sales": cast(int, totals["conversions"])}
 
         if campaign_id:
             camp = await self._campaigns.get(campaign_id)
@@ -43,7 +45,7 @@ class MarketingFunnelUseCase:
         else:
             investment = await self._investment.total(store_ids, start, end)   # D2: lançamentos diários
 
-        funnel = build_cost_funnel(quantities, investment, float(totals["total_revenue"]))
+        funnel = build_cost_funnel(quantities, investment, cast(float, totals["total_revenue"]))
         await self._apply_lights(funnel, store_ids, start, end, campaign_id)
         return funnel
 
