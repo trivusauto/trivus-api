@@ -9,6 +9,8 @@ class Settings(BaseSettings):
     database_url: str
     jwt_secret: str
     jwt_expires_minutes: int = 10080
+    n8n_bulk_send_webhook_url: str | None = None
+    n8n_token: str = "dev-n8n-token"
 
 
 @lru_cache

@@ -9,6 +9,7 @@ from src.modules.legacy_leads.interface.router import router as legacy_leads_rou
 from src.modules.stores.interface.router import router as stores_router
 from src.modules.users.interface.router import router as users_router
 from src.modules.agenda.interface.router import router as agenda_router
+from src.modules.bulk_send.interface.router import router as bulk_send_router
 from src.modules.metrics.interface.router import router as metrics_router
 from src.modules.webhook.interface.router import router as webhook_router
 from src.shared.interface.error_handlers import register_error_handlers
@@ -31,6 +32,7 @@ def create_app() -> FastAPI:
     app.include_router(goals_admin_router)
     app.include_router(action_plans_router)
     app.include_router(action_plans_admin_router)
+    app.include_router(bulk_send_router)
     return app
 
 
