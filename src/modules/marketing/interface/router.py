@@ -16,6 +16,7 @@ from src.shared.domain.errors import ForbiddenError
 from src.modules.marketing.interface.schemas import (
     CampaignResponse, CreateCampaignRequest, UpdateCampaignRequest,
 )
+from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 
 router = APIRouter(tags=["marketing"])
@@ -26,7 +27,7 @@ def _resp(c: Campaign) -> CampaignResponse:
                             ended_at=c.ended_at, budget=c.budget, link_code=c.link_code)
 
 
-@router.get("/campaigns")
+@router.get("/campaigns", dependencies=[Depends(require_feature("marketing.campaigns"))])
 async def list_campaigns(store_id: str = Query(...), _: CurrentUser = Depends(get_current_user),
                          uc: ListCampaignsUseCase = Depends(get_list_campaigns_uc)) -> list[CampaignResponse]:
     return [_resp(c) for c in await uc.execute(store_id)]
@@ -52,7 +53,7 @@ async def _check_scope(user: CurrentUser, store_id: str,
         raise ForbiddenError("Loja fora do escopo.")
 
 
-@router.get("/marketing/funnel")
+@router.get("/marketing/funnel", dependencies=[Depends(require_feature("metrics.marketing"))])
 async def marketing_funnel(store_id: str = Query(...), start: str = Query(...), end: str = Query(...),
                            campaign_id: str | None = Query(None),
                            user: CurrentUser = Depends(get_current_user),
@@ -62,7 +63,7 @@ async def marketing_funnel(store_id: str = Query(...), start: str = Query(...), 
     return await uc.execute([store_id], start, end, campaign_id)
 
 
-@router.get("/marketing/by-campaign")
+@router.get("/marketing/by-campaign", dependencies=[Depends(require_feature("metrics.marketing"))])
 async def marketing_by_campaign(store_id: str = Query(...), start: str = Query(...), end: str = Query(...),
                                 user: CurrentUser = Depends(get_current_user),
                                 uc: CampaignsFunnelsUseCase = Depends(get_campaigns_funnels_uc),

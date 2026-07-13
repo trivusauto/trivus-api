@@ -13,6 +13,7 @@ from src.modules.stores.application.get_accessible_stores import GetAccessibleSt
 from src.modules.stores.infrastructure.repository import SqlAlchemyStoreRepository
 from src.shared.domain.errors import DomainError
 from src.shared.infrastructure.database import get_session
+from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -58,8 +59,17 @@ async def reports(
     uc: ReportUseCase = Depends(get_report_uc),
     access: GetAccessibleStoreIdsUseCase = Depends(get_accessible_uc),
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    return await uc.execute(await _resolve(user, store_id, access, stores), start, end, campaign_id)
+    result = await uc.execute(await _resolve(user, store_id, access, stores), start, end, campaign_id)
+    if user.role != "admin" and store_id:
+        # E4: response-shaping — sem a key de custos, o dado nem sai da API
+        from src.modules.ecosystem.infrastructure.entitlement_service import EntitlementService
+        keys = await EntitlementService(session).feature_keys_for_store(store_id)
+        if "metrics.reports.costs" not in keys:
+            result["costs"] = None
+            result["investment"] = None
+    return result
 
 
 @router.get("/projections")
@@ -75,7 +85,7 @@ async def projections(
     return await uc.execute(await _resolve(user, store_id, access, stores), year, month)
 
 
-@router.get("/indicators-report")
+@router.get("/indicators-report", dependencies=[Depends(require_feature("indicators"))])
 async def indicators_report(
     store_id: str = Query(...),
     date_from: str = Query(..., alias="from"),
@@ -94,7 +104,7 @@ async def indicators_report(
     return await uc.execute(store_id, date_from, date_to, year, month)
 
 
-@router.get("/team")
+@router.get("/team", dependencies=[Depends(require_feature("metrics.team"))])
 async def team(
     store_id: str = Query(...),
     start: str = Query(...),

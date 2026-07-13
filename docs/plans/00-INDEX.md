@@ -109,7 +109,7 @@ O Plano 03 (Auth) implementa esse padrão por inteiro e serve de **template** pa
 
 | # | Plano | Escopo | Produz | Status |
 |---|-------|--------|--------|--------|
-| 01 | [Descoberta & Modelagem de Dados](./01-data-discovery-modeling.md) | Introspecção do banco real, ERD, **schema-alvo limpo**, quick-wins de índice, estratégia de migração | Spec do modelo de dados correto | ⬜ |
+| 01 | [Descoberta & Modelagem de Dados](./01-data-discovery-modeling.md) | Introspecção do banco real, ERD, **schema-alvo limpo**, quick-wins de índice, estratégia de migração | Spec do modelo de dados correto | ⏭️ (pulado — sem acesso ao banco; modelo aprovado) |
 | 02 | [Fundação & Deploy](./02-foundation-and-deploy.md) | uv + FastAPI scaffold, hexagonal base, Postgres em compose, SQLAlchemy/Alembic (schema-alvo), health, CI, deploy | Backend rodando local e em prod | ✅ |
 | 03 | [Auth & Sessão (template)](./03-auth.md) | JWT, argon2, use cases de login, guards, **vertical slice hexagonal completa** | Login real + o template de módulo | ✅ |
 | 04 | [Usuários & Lojas](./04-users-and-stores.md) | users (admin), stores, user_store_access, role labels | Admin gerencia lojas/usuários | ✅ |
@@ -120,9 +120,9 @@ O Plano 03 (Auth) implementa esse padrão por inteiro e serve de **template** pa
 | 08 | [Métricas](./08-metrics.md) | dashboard, relatórios, projeções, team; dias úteis corrigidos | Read models | ✅ |
 | 08b | [Métricas avançadas](./08b-advanced-metrics.md) | qualificação, séries mensais, modo indicadores, global admin | Cobertura total do front | ✅ |
 | 09 | [Legado & Metas & Planos](./09-legacy-goals-plans.md) | leads, daily_indicators (upsert), goals, action_plans | Modo indicadores + metas + planos | ✅ |
-| 10 | [Disparos em massa](./10-bulk-send.md) | bulk_sends, bulk_send_contacts, integração n8n | Disparos via API | ⬜ |
-| 10b | [Módulo Marketing](./10b-marketing.md) | campanhas, funil de custos (CPL/CAC/ROAS/ROI), classificados, investimento, sinaleiros, filtro por campanha, bloqueio por campanha | Marketing novo + relatórios com custos | ⬜ |
-| 12 | [Ecossistema](./12-ecosystem.md) | empresas, planos, assinaturas (manual+trial), serviços com CRUD → feature keys, gates (`require_feature`), upsell + n8n, cobrança via framework (desligada) | Plataforma da holding | ⬜ |
+| 10 | [Disparos em massa](./10-bulk-send.md) | bulk_sends, bulk_send_contacts, integração n8n | Disparos via API | ✅ |
+| 10b | [Módulo Marketing](./10b-marketing.md) | campanhas, funil de custos (CPL/CAC/ROAS/ROI), classificados, investimento, sinaleiros, filtro por campanha, bloqueio por campanha | Marketing novo + relatórios com custos | ✅ |
+| 12 | [Ecossistema](./12-ecosystem.md) | empresas, planos, assinaturas (manual+trial), serviços com CRUD → feature keys, gates (`require_feature`), upsell + n8n, cobrança via framework (desligada) | Plataforma da holding | ✅ |
 | 11 | [Migração de dados, Limpeza & Cutover](./11-cleanup-cutover.md) | ETL ensaiado (inclui empresas/assinaturas) → virada única, frontend→API, remover legado, segredos | Produção endurecida | ⬜ |
 
 > **Todos os planos estão escritos em detalhe** (baby-steps TDD, formato hexagonal do Plano 03). Ordem de execução: **01 → 02 → 03 → 04 → 05 → 05b → 06 → 07 → 08 → 08b → 09 → 10 → 10b → 12 → 11** (o 11 — cutover — é sempre o último). O status ⬜ é de **execução** — marque ✅ ao concluir. O modelo de dados aprovado está em [`../db/MODELO_ALVO.md`](../db/MODELO_ALVO.md) (**23 tabelas**). Specs: [`../MIGRACAO_BACKEND.md`](../MIGRACAO_BACKEND.md) (domínio), `MUDANCAS_MARKETING_RELATORIOS.md` (marketing), [`../ECOSSISTEMA_TRIVUS.md`](../ECOSSISTEMA_TRIVUS.md) (ecossistema).

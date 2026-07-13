@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, Query
 from src.modules.indicators.application.use_cases import ListIndicatorsUseCase, UpsertIndicatorUseCase
 from src.modules.indicators.interface.deps import list_uc, upsert_uc
 from src.modules.indicators.interface.schemas import UpsertIndicatorRequest
+from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 
 router = APIRouter(prefix="/indicators", tags=["indicators"])
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_feature("indicators"))])
 async def list_indicators(
     store_id: str = Query(...),
     date_from: str | None = Query(None, alias="from"),

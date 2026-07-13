@@ -6,6 +6,7 @@ from src.modules.action_plans.interface.deps import create_uc, delete_uc, list_u
 from src.modules.action_plans.interface.schemas import (
     CreateActionPlanRequest, UpdateActionPlanRequest, UpdateStatusRequest,
 )
+from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import get_current_user
 from src.shared.interface.rbac import require_roles
 
@@ -13,7 +14,7 @@ router = APIRouter(tags=["action-plans"])
 admin_router = APIRouter(tags=["action-plans"])
 
 
-@router.get("/action-plans")
+@router.get("/action-plans", dependencies=[Depends(require_feature("action_plans"))])
 async def list_plans(
     store_id: str = Query(...),
     _: object = Depends(get_current_user),

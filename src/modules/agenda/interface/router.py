@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, Query
 
 from src.modules.agenda.application.list_agenda import ListAgendaUseCase
 from src.modules.agenda.interface.deps import get_list_agenda_uc
+from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 
 router = APIRouter(prefix="/agenda", tags=["agenda"])
 
 
-@router.get("")
+@router.get("", dependencies=[Depends(require_feature("agenda"))])
 async def list_agenda(
     store_id: str = Query(...),
     apply_to: str = Query("agendamento"),

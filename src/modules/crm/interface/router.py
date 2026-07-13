@@ -49,13 +49,14 @@ from src.modules.crm.interface.schemas import (
     UpdateLeadRequest,
 )
 from src.shared.infrastructure.database import get_session
+from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from src.shared.interface.rbac import require_roles
 
 router = APIRouter(prefix="/crm", tags=["crm"])
 
 
-@router.get("/funnels")
+@router.get("/funnels", dependencies=[Depends(require_feature("crm.kanban"))])
 async def list_funnels(
     store_id: str = Query(...),
     _: CurrentUser = Depends(get_current_user),
@@ -83,7 +84,7 @@ async def rename_stage(
     return await uc.execute(stage_id, body.name)
 
 
-@router.get("/leads")
+@router.get("/leads", dependencies=[Depends(require_feature("crm.kanban"))])
 async def list_leads(
     store_id: str = Query(...),
     user: CurrentUser = Depends(get_current_user),

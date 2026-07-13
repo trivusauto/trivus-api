@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, Query
 from src.modules.goals.application.use_cases import DeleteGoalUseCase, ListGoalsUseCase, UpsertGoalUseCase
 from src.modules.goals.interface.deps import delete_uc, list_uc, upsert_uc
 from src.modules.goals.interface.schemas import UpsertGoalRequest
+from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import get_current_user
 from src.shared.interface.rbac import require_roles
 
@@ -9,7 +10,7 @@ router = APIRouter(tags=["goals"])
 admin_router = APIRouter(tags=["goals"])
 
 
-@router.get("/goals")
+@router.get("/goals", dependencies=[Depends(require_feature("goals"))])
 async def list_goals(
     store_id: str = Query(...),
     year: int = Query(...),
