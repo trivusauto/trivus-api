@@ -21,4 +21,5 @@ class InvestmentReader:
             DailyIndicatorModel.reference_date >= date.fromisoformat(start),
             DailyIndicatorModel.reference_date <= date.fromisoformat(end),
         )
-        return float((await self._session.execute(stmt)).scalar_one())
+        total = (await self._session.execute(stmt)).scalar_one()
+        return float(total or 0)

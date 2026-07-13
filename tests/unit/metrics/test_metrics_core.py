@@ -47,14 +47,14 @@ def test_by_origin() -> None:
 
 def test_by_origin_classified() -> None:
     by = aggregate_by_origin_for_range([lead()], "2026-02-01", "2026-02-28",
-                                       passed_qualificados=None, passed_classificados=lambda l: True)
+                                       passed_qualificados=None, passed_classificados=lambda _lead: True)
     assert by["receptivo"]["classified"] == 1
 
 
 def test_report_costs() -> None:
     leads = [lead(), lead(fechou_negocio=True, data_fechou_negocio="2026-02-12", rentabilidade=5000)]
     res = build_report_processed(leads, "2026-02-01", "2026-02-28",
-                                 passed_qualificados=None, passed_classificados=lambda l: True,
+                                 passed_qualificados=None, passed_classificados=lambda _lead: True,
                                  investment=1000)
     assert res["investment"] == 1000
     assert res["costs"]["cost_per_lead"] == 500.0        # 1000 / 2 leads receptivos
