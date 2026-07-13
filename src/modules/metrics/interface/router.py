@@ -1,13 +1,12 @@
 from fastapi import APIRouter, Depends, Query
 from src.modules.auth.infrastructure.repository import SqlAlchemyUserRepository
 from src.modules.metrics.application.dashboard import DashboardUseCase
-from src.modules.metrics.application.marketing import MarketingUseCase
 from src.modules.metrics.application.projections import ProjectionsUseCase
 from src.modules.metrics.application.reports import ReportUseCase
 from src.modules.metrics.domain.team import build_team_performance
 from src.modules.metrics.infrastructure.reader import MetricsLeadReader
 from src.modules.metrics.interface.deps import (
-    get_accessible_uc, get_dashboard_uc, get_indicators_report_uc, get_marketing_uc,
+    get_accessible_uc, get_dashboard_uc, get_indicators_report_uc,
     get_projections_uc, get_report_uc, get_store_repo, get_user_repo,
 )
 from src.modules.stores.application.get_accessible_stores import GetAccessibleStoreIdsUseCase
@@ -73,19 +72,6 @@ async def projections(
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
 ) -> dict[str, object]:
     return await uc.execute(await _resolve(user, store_id, access, stores), year, month)
-
-
-@router.get("/marketing")
-async def marketing(
-    store_id: str | None = Query(None),
-    start: str = Query(...),
-    end: str = Query(...),
-    user: CurrentUser = Depends(get_current_user),
-    uc: MarketingUseCase = Depends(get_marketing_uc),
-    access: GetAccessibleStoreIdsUseCase = Depends(get_accessible_uc),
-    stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
-) -> dict[str, object]:
-    return await uc.execute(await _resolve(user, store_id, access, stores), start, end)
 
 
 @router.get("/indicators-report")
