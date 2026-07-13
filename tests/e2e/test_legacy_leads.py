@@ -17,4 +17,4 @@ async def test_create_and_list_legacy_lead(client: AsyncClient) -> None:
     assert res.status_code == 201
     listed = await client.get(f"/leads?store_id={store_id}", headers=headers)
     assert listed.status_code == 200
-    assert any(l["name"] == "João Silva" for l in listed.json())
+    assert any(item["name"] == "João Silva" for item in listed.json())
