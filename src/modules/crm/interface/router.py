@@ -7,7 +7,10 @@ from src.modules.crm.application.leads import (
     ListLeadsUseCase,
     UpdateLeadUseCase,
 )
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from src.modules.crm.application.move_lead import MoveLeadStageUseCase
+from src.modules.crm.infrastructure.store_flags import StoreFlagsReader
 from src.modules.crm.application.patches import SetAgendamentoUseCase, SetCompareceuUseCase, SetFechamentoUseCase
 from src.modules.crm.application.sync_template import SyncTemplateToClientsUseCase
 from src.modules.crm.application.templates_crud import CreateTemplateUseCase, ListTemplatesUseCase
@@ -45,6 +48,7 @@ from src.modules.crm.interface.schemas import (
     RenameRequest,
     UpdateLeadRequest,
 )
+from src.shared.infrastructure.database import get_session
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from src.shared.interface.rbac import require_roles
 
@@ -125,8 +129,10 @@ async def move_lead(
     stages: StageRepository = Depends(get_stage_repo),
     history: HistoryRepository = Depends(get_history_repo),
     activity: ActivityRepository = Depends(get_activity_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    uc = MoveLeadStageUseCase(leads, stages, history, activity, StageRules())
+    uc = MoveLeadStageUseCase(leads, stages, history, activity, StageRules(),
+                              store_flags=StoreFlagsReader(session))
     return await uc.execute(lead_id, body.to_stage_id, user)
 
 
