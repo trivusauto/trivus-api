@@ -15,6 +15,7 @@ class UpsertGoalRequest(BaseModel):
     conversions_quantity: int = 0
     profitability_goal: float | None = None
     average_ticket_goal: float | None = None
+    marketing_investment_goal: float | None = None
 
     @field_validator("month")
     @classmethod

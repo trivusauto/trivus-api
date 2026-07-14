@@ -17,6 +17,7 @@ class RenameRequest(BaseModel):
 
 
 class CreateLeadRequest(BaseModel):
+    campaign_id: str | None = None
     store_id: str
     stage_id: str
     funil: str | None = None
@@ -29,6 +30,7 @@ class CreateLeadRequest(BaseModel):
 
 
 class UpdateLeadRequest(BaseModel):
+    campaign_id: str | None = None
     funil: str | None = None
     nome: str | None = None
     telefone: str | None = None

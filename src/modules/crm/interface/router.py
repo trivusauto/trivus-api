@@ -54,6 +54,7 @@ from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from src.shared.interface.rbac import require_roles
 
 router = APIRouter(prefix="/crm", tags=["crm"])
+admin_router = APIRouter(tags=["crm-admin"])  # sem prefixo: rotas /admin/crm/*
 
 
 @router.get("/funnels", dependencies=[Depends(require_feature("crm.kanban"))])
@@ -178,7 +179,7 @@ async def set_cooling_rules(
     return await repo.save(stage_id, rules)
 
 
-@router.get("/admin/crm/templates")
+@admin_router.get("/admin/crm/templates")
 async def list_templates(
     _: CurrentUser = Depends(require_roles("admin")),
     uc: ListTemplatesUseCase = Depends(get_list_templates_uc),
@@ -186,7 +187,7 @@ async def list_templates(
     return await uc.execute()
 
 
-@router.post("/admin/crm/templates", status_code=201)
+@admin_router.post("/admin/crm/templates", status_code=201)
 async def create_template(
     body: CreateTemplateRequest,
     _: CurrentUser = Depends(require_roles("admin")),
@@ -195,7 +196,7 @@ async def create_template(
     return await uc.execute(body.name, body.stages)
 
 
-@router.post("/admin/crm/templates/{template_id}/sync", status_code=200)
+@admin_router.post("/admin/crm/templates/{template_id}/sync", status_code=200)
 async def sync_template(
     template_id: str,
     _: CurrentUser = Depends(require_roles("admin")),
