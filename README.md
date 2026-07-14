@@ -8,6 +8,8 @@ Backend da plataforma **Trivus** — gestão de performance para concessionária
 
 **Arquitetura:** hexagonal/DDD por módulo (`domain → application → infrastructure → interface`). Regras de negócio são serviços de domínio puros, testados sem I/O; repositórios SQLAlchemy implementam os ports; routers FastAPI fazem só a costura.
 
+> 🧭 **Vai construir o frontend (ou integrar com a API)?** Leia **[docs/API_REFERENCE.md](docs/API_REFERENCE.md)** — a visão completa do backend: domínio e glossário, todos os ~80 endpoints (o que recebem/devolvem/permissões), regras de negócio (ciclo do lead, métricas, entitlements/upsell), tabelas e enums. Schemas machine-readable no OpenAPI: `GET /openapi.json` (Swagger em `/docs`).
+
 ---
 
 ## Módulos
