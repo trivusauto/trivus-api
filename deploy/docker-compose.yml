@@ -1,0 +1,76 @@
+name: trivus-local
+
+# Stack completa (banco + API + front) para desenvolvimento local.
+# Rode a partir desta pasta:  docker compose up -d --build
+# Requer o repo trivus-web como irmão de trivus-api (../../trivus-web).
+# Valores ficam direto aqui (sem .env) de propósito — é ambiente local.
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: trivus-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: trivus
+      POSTGRES_PASSWORD: trivus
+      POSTGRES_DB: trivus
+    ports:
+      - '5433:5432'
+    volumes:
+      - trivus-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U trivus -d trivus']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trivus
+
+  api:
+    build: ..
+    container_name: trivus-api
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENV: development
+      DATABASE_URL: postgresql+asyncpg://trivus:trivus@db:5432/trivus
+      JWT_SECRET: dev-change-me
+      JWT_EXPIRES_MINUTES: '10080'
+      N8N_BULK_SEND_WEBHOOK_URL: ''
+      N8N_TOKEN: dev-n8n-token
+      N8N_INTEREST_WEBHOOK_URL: ''
+      BILLING_GATEWAY_ENABLED: 'false'
+      BILLING_TOKEN: dev-billing-token
+    command: sh -c "uv run alembic upgrade head && uv run python -m scripts.seed_admin && uv run uvicorn src.main:app --host 0.0.0.0 --port 3001"
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test: ['CMD', 'python3', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:3001/health")']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - trivus
+
+  web:
+    build: ../../trivus-web
+    container_name: trivus-web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      BACKEND_URL: http://api:3001
+    ports:
+      - '3000:3000'
+    networks:
+      - trivus
+
+volumes:
+  trivus-db-data:
+
+networks:
+  trivus:

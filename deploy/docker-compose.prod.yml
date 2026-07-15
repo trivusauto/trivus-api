@@ -1,0 +1,73 @@
+name: trivus-prod
+
+# Stack completa para produção self-hosted (alternativa ao Coolify).
+# Segredos vêm de variáveis de ambiente — copie .env.prod.example para .env.prod:
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --build
+# Requer o repo trivus-web como irmão de trivus-api (../../trivus-web).
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: trivus-db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - trivus-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}']
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - trivus
+
+  api:
+    build: ..
+    container_name: trivus-api
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ENV: production
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
+      JWT_SECRET: ${JWT_SECRET}
+      JWT_EXPIRES_MINUTES: ${JWT_EXPIRES_MINUTES:-10080}
+      N8N_BULK_SEND_WEBHOOK_URL: ${N8N_BULK_SEND_WEBHOOK_URL:-}
+      N8N_TOKEN: ${N8N_TOKEN}
+      N8N_INTEREST_WEBHOOK_URL: ${N8N_INTEREST_WEBHOOK_URL:-}
+      BILLING_GATEWAY_ENABLED: ${BILLING_GATEWAY_ENABLED:-false}
+      BILLING_TOKEN: ${BILLING_TOKEN}
+    ports:
+      - '3001:3001'
+    healthcheck:
+      test: ['CMD', 'python3', '-c', 'import urllib.request; urllib.request.urlopen("http://localhost:3001/health")']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - trivus
+
+  web:
+    build: ../../trivus-web
+    container_name: trivus-web
+    restart: always
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      BACKEND_URL: http://api:3001
+    ports:
+      - '3000:3000'
+    networks:
+      - trivus
+
+volumes:
+  trivus-db-data:
+
+networks:
+  trivus:
