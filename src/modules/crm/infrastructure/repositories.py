@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,6 +26,19 @@ def lead_to_dict(r: LeadModel) -> dict[str, object]:
         if d.get(k) is not None:
             d[k] = float(d[k])  # type: ignore[arg-type]
     return d
+
+
+_DATE_FIELDS = ("data_agendamento", "data_marcacao_agendamento", "data_compareceu", "data_fechou_negocio")
+
+
+def _coerce_dates(data: dict[str, object]) -> dict[str, object]:
+    """Colunas DATE exigem datetime.date no asyncpg; API/domínio trafegam string ISO."""
+    out = dict(data)
+    for k in _DATE_FIELDS:
+        v = out.get(k)
+        if isinstance(v, str) and v:
+            out[k] = date.fromisoformat(v[:10])
+    return out
 
 
 class FunnelRepository:
@@ -146,7 +159,7 @@ class LeadRepository:
         return d
 
     async def create(self, data: dict[str, object]) -> dict[str, object]:
-        row = LeadModel(id=str(uuid.uuid4()), **data)
+        row = LeadModel(id=str(uuid.uuid4()), **_coerce_dates(data))
         self._session.add(row)
         await self._session.flush()
         return lead_to_dict(row)
@@ -155,7 +168,7 @@ class LeadRepository:
         row = await self._session.get(LeadModel, lead_id)
         if row is None:
             raise NotFoundError("Lead não encontrado")
-        for k, v in data.items():
+        for k, v in _coerce_dates(data).items():
             setattr(row, k, v)
         row.updated_at = datetime.now(timezone.utc)
         await self._session.flush()
