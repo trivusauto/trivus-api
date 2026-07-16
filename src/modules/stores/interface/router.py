@@ -13,15 +13,27 @@ from src.modules.stores.interface.deps import (
     get_update_store_uc,
     set_role_labels_uc,
 )
+from src.modules.stores.infrastructure.repository import SqlAlchemyStoreRepository
+from src.modules.stores.interface.deps import get_store_repo
 from src.modules.stores.interface.schemas import CreateStoreRequest, StoreResponse
-from src.shared.interface.auth_deps import CurrentUser
+from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from src.shared.interface.rbac import require_roles
 
 router = APIRouter(prefix="/admin/stores", tags=["stores"])
+me_router = APIRouter(prefix="/stores", tags=["stores"])
 
 
 def _resp(s: Store) -> StoreResponse:
     return StoreResponse(id=s.id, nome_fantasia=s.nome_fantasia, crm_enabled=s.crm_enabled, active=s.active)
+
+
+@me_router.get("/mine")
+async def list_my_stores(
+    user: CurrentUser = Depends(get_current_user),
+    repo: SqlAlchemyStoreRepository = Depends(get_store_repo),
+) -> list[StoreResponse]:
+    """Lojas vinculadas ao usuário logado via user_store_access (dono/portal)."""
+    return [_resp(s) for s in await repo.list_for_user(user.user_id)]
 
 
 @router.get("")

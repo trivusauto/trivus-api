@@ -471,13 +471,19 @@ async def main() -> None:
         antiga = await seed_store(s, antiga_c, "Zeta Motors", antiga_svc)
         stores.append((antiga, antiga_svc, 10, False))
 
-        # portal owners (role client) — um por empresa principal
-        for cname, cid in [("carlos", auto_c), ("marina", veloz_c), ("rafael", nova_c)]:
+        # portal owners (role client) — um por empresa, vinculados às lojas (user_store_access)
+        owner_stores = {"carlos": [matriz, filial], "marina": [veloz], "rafael": [nova]}
+        for cname, store_ids in owner_stores.items():
+            uid = str(uuid.uuid4())
             await insert(s, "users", {
-                "id": str(uuid.uuid4()), "email": f"{cname}@trivus.local",
+                "id": uid, "email": f"{cname}@trivus.local",
                 "password_hash": HASHER.hash(DEMO_PASSWORD), "name": cname.capitalize(),
                 "role": "client", "active": True,
             })
+            for sid in store_ids:
+                await insert(s, "user_store_access", {
+                    "id": str(uuid.uuid4()), "user_id": uid, "store_id": sid, "is_owner": True,
+                })
 
         companies_stores = [(auto_c, matriz), (veloz_c, veloz), (nova_c, nova)]
         await seed_interests(s, companies_stores)

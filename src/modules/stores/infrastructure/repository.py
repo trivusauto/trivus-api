@@ -32,6 +32,16 @@ class SqlAlchemyStoreRepository(StoreRepository):
         rows = (await self._session.execute(select(StoreModel).order_by(StoreModel.nome_fantasia))).scalars().all()
         return [_to_domain(r) for r in rows]
 
+    async def list_for_user(self, user_id: str) -> list[Store]:
+        """Lojas vinculadas ao usuário via user_store_access (dono/portal)."""
+        rows = (await self._session.execute(
+            select(StoreModel)
+            .join(UserStoreAccessModel, UserStoreAccessModel.store_id == StoreModel.id)
+            .where(UserStoreAccessModel.user_id == user_id)
+            .order_by(StoreModel.nome_fantasia)
+        )).scalars().all()
+        return [_to_domain(r) for r in rows]
+
     async def get_by_id(self, store_id: str) -> Store | None:
         row = await self._session.get(StoreModel, store_id)
         return _to_domain(row) if row else None

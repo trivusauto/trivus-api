@@ -15,6 +15,10 @@ def _repo(session: AsyncSession = Depends(get_session)) -> SqlAlchemyStoreReposi
     return SqlAlchemyStoreRepository(session)
 
 
+def get_store_repo(session: AsyncSession = Depends(get_session)) -> SqlAlchemyStoreRepository:
+    return SqlAlchemyStoreRepository(session)
+
+
 def get_list_stores_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> ListStoresUseCase:
     return ListStoresUseCase(repo)
 
