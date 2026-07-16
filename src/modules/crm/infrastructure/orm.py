@@ -56,7 +56,7 @@ class ActivityModel(Base):
     actor_user_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
     action: Mapped[str] = mapped_column(String)
     entity_type: Mapped[str | None] = mapped_column(String, nullable=True)
-    entity_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    entity_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
 
 
 class LeadModel(Base):
@@ -91,6 +91,7 @@ class LeadModel(Base):
     saldo_quitacao: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     valor_pretendido: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
     valor_compra: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    data_comprado: Mapped[date | None] = mapped_column(Date, nullable=True)
     data_agendamento: Mapped[date | None] = mapped_column(Date, nullable=True)
     hora_agendamento: Mapped[str | None] = mapped_column(String, nullable=True)
     data_marcacao_agendamento: Mapped[date | None] = mapped_column(Date, nullable=True)
