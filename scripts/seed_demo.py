@@ -28,7 +28,7 @@ DEMO_PASSWORD = "demo123"
 
 STAGES = [
     "RECEBIDOS", "CLASSIFICADOS", "QUALIFICADOS", "AGENDADOS",
-    "EM ATENDIMENTO", "VEICULOS COMPRADOS", "VEICULOS VENDIDOS",
+    "EM ATENDIMENTO", "RESGATE", "VEICULOS COMPRADOS", "VEICULOS VENDIDOS",
 ]
 NAMES = [
     "João Silva", "Maria Oliveira", "Pedro Santos", "Ana Costa", "Lucas Pereira",
@@ -59,8 +59,8 @@ CAMPAIGN_DEFS = [
     ("Black Friday Veículos", "blackfriday", 6000.0),
 ]
 
-# distribuição de quão longe cada lead avançou no funil (índice de etapa 0..6)
-REACHED_WEIGHTS = [(0, 15), (1, 15), (2, 18), (3, 14), (4, 12), (5, 8), (6, 18)]
+# distribuição de quão longe cada lead avançou no funil (índice de etapa 0..7; 5=RESGATE)
+REACHED_WEIGHTS = [(0, 14), (1, 14), (2, 16), (3, 13), (4, 10), (5, 9), (6, 8), (7, 16)]
 # viés para meses recentes (offset 0 = mês atual)
 MONTH_WEIGHTS = [(0, 28), (1, 18), (2, 14), (3, 10), (4, 8), (5, 8), (6, 7), (7, 7)]
 
@@ -68,7 +68,7 @@ LEAD_COLS = [
     "id", "store_id", "stage_id", "sort_order", "assigned_to", "vendedor_id", "agendado_por",
     "funil", "qualificado", "origem_mkt", "urgencia_venda", "nome", "telefone", "bairro", "cidade",
     "modelo", "veiculo", "ano", "cor", "combustivel", "quilometragem", "valor_tabela_fipe",
-    "tem_financiamento", "valor_pretendido", "valor_compra", "data_agendamento", "hora_agendamento",
+    "tem_financiamento", "valor_pretendido", "valor_compra", "data_comprado", "data_agendamento", "hora_agendamento",
     "data_marcacao_agendamento", "compareceu_agendamento", "data_compareceu", "fechou_negocio",
     "data_fechou_negocio", "receita", "despesa", "rentabilidade", "observacoes", "campaign_id",
     "created_at", "updated_at",
@@ -332,12 +332,15 @@ def build_lead(store_id, stage_ids, team, campaigns, offset):
     if reached >= 4:  # EM ATENDIMENTO (compareceu)
         comp = clamp_past(row["data_agendamento"] + timedelta(days=random.randint(0, 2)))
         row.update({"compareceu_agendamento": True, "data_compareceu": comp, "vendedor_id": vendedor})
-    if reached >= 5:  # VEICULOS COMPRADOS
+    if reached == 5:  # RESGATE (atendido, não fechou — retomar contato)
+        row["observacoes"] = "Não aceitou a proposta inicial. Retomar contato em 15 dias."
+    if reached >= 6:  # VEICULOS COMPRADOS
         row["valor_compra"] = round(random.uniform(40000, 160000), 2)
-    if reached >= 6:  # VEICULOS VENDIDOS (fechou)
+        row["data_comprado"] = clamp_past(row["data_compareceu"] + timedelta(days=random.randint(0, 5)))
+    if reached >= 7:  # VEICULOS VENDIDOS (fechou)
         receita = round(random.uniform(55000, 190000), 2)
         despesa = round(receita * random.uniform(0.82, 0.93), 2)
-        fech = clamp_past(row["data_compareceu"] + timedelta(days=random.randint(0, 7)))
+        fech = clamp_past(row["data_comprado"] + timedelta(days=random.randint(0, 7)))
         row.update({
             "fechou_negocio": True, "data_fechou_negocio": fech, "receita": receita,
             "despesa": despesa, "rentabilidade": round(receita - despesa, 2),

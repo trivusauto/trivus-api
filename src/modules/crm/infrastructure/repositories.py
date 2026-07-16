@@ -4,6 +4,7 @@ from datetime import date, datetime, timezone
 from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.crm.domain.lead_patch import parse_optional_money
 from src.modules.crm.infrastructure.orm import (
     ActivityModel,
     CoolingRuleModel,
@@ -18,7 +19,7 @@ from src.shared.domain.errors import NotFoundError
 def lead_to_dict(r: LeadModel) -> dict[str, object]:
     d: dict[str, object] = {c.name: getattr(r, c.name) for c in r.__table__.columns}
     d["id"] = str(d["id"])
-    for k in ("data_agendamento", "data_marcacao_agendamento", "data_compareceu", "data_fechou_negocio", "created_at", "updated_at"):
+    for k in ("data_agendamento", "data_marcacao_agendamento", "data_compareceu", "data_fechou_negocio", "data_comprado", "created_at", "updated_at"):
         v = d.get(k)
         if v is not None and hasattr(v, "isoformat"):
             d[k] = v.isoformat()
@@ -28,16 +29,22 @@ def lead_to_dict(r: LeadModel) -> dict[str, object]:
     return d
 
 
-_DATE_FIELDS = ("data_agendamento", "data_marcacao_agendamento", "data_compareceu", "data_fechou_negocio")
+_DATE_FIELDS = ("data_agendamento", "data_marcacao_agendamento", "data_compareceu", "data_fechou_negocio", "data_comprado")
+_MONEY_FIELDS = ("valor_tabela_fipe", "saldo_quitacao", "valor_pretendido", "valor_compra", "receita", "despesa", "rentabilidade")
 
 
 def _coerce_dates(data: dict[str, object]) -> dict[str, object]:
-    """Colunas DATE exigem datetime.date no asyncpg; API/domínio trafegam string ISO."""
+    """Colunas DATE exigem datetime.date e NUMERIC exige número no asyncpg;
+    API/domínio trafegam strings ("2026-07-20", "85.000,00")."""
     out = dict(data)
     for k in _DATE_FIELDS:
         v = out.get(k)
         if isinstance(v, str) and v:
             out[k] = date.fromisoformat(v[:10])
+    for k in _MONEY_FIELDS:
+        v = out.get(k)
+        if isinstance(v, str):
+            out[k] = parse_optional_money(v)
     return out
 
 

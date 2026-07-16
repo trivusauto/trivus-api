@@ -51,6 +51,12 @@ class UpdateLeadRequest(BaseModel):
     origem_mkt: str | None = None
     urgencia_venda: str | None = None
     tem_financiamento: bool | None = None
+    valor_tabela_fipe: str | None = None
+    saldo_quitacao: str | None = None
+    valor_pretendido: str | None = None
+    valor_compra: str | None = None
+    data_comprado: str | None = None
+    data_fechou_negocio: str | None = None
 
 
 class MoveLeadRequest(BaseModel):

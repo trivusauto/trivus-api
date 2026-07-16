@@ -1,3 +1,5 @@
+from datetime import date
+
 from src.modules.crm.domain.stage_rules import StageRules
 from src.modules.crm.infrastructure.repositories import ActivityRepository, HistoryRepository, LeadRepository, StageRepository
 from src.modules.crm.infrastructure.store_flags import StoreFlagsReader
@@ -39,7 +41,16 @@ class MoveLeadStageUseCase:
             if not ok:
                 labels = ", ".join(dict.fromkeys(str(m["label"]) for m in missing))
                 raise DomainError(f"Preencha os campos obrigatórios: {labels}.")
-        moved = await self._leads.update(lead_id, {"stage_id": to_stage_id})
+        # carimbos automáticos por coluna (editáveis depois, p/ lançamentos retroativos)
+        patch: dict[str, object] = {"stage_id": to_stage_id}
+        target_norm = self._rules.normalize_stage_name(target.name)
+        today = date.today().isoformat()
+        if target_norm == "VEICULOS COMPRADOS" and not lead.get("data_comprado"):
+            patch["data_comprado"] = today
+        if target_norm == "VEICULOS VENDIDOS" and lead.get("fechou_negocio") is not True:
+            patch["fechou_negocio"] = True
+            patch["data_fechou_negocio"] = today
+        moved = await self._leads.update(lead_id, patch)
         await self._history.record(lead_id, to_stage_id)
         await self._activity.log(
             store_id=str(lead["store_id"]), actor_user_id=getattr(user, "user_id", None),
