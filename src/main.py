@@ -11,6 +11,7 @@ from src.modules.users.interface.router import router as users_router
 from src.modules.agenda.interface.router import router as agenda_router
 from src.modules.bulk_send.interface.router import router as bulk_send_router
 from src.modules.ecosystem.interface.router import router as ecosystem_router
+from src.modules.integrations.meta.interface.router import router as meta_integration_router
 from src.modules.marketing.interface.router import router as marketing_router
 from src.modules.metrics.interface.router import router as metrics_router
 from src.modules.webhook.interface.router import router as webhook_router
@@ -39,6 +40,7 @@ def create_app() -> FastAPI:
     app.include_router(bulk_send_router)
     app.include_router(marketing_router)
     app.include_router(ecosystem_router)
+    app.include_router(meta_integration_router)
     return app
 
 

@@ -16,6 +16,7 @@ class UpdateCampaignRequest(BaseModel):
     ended_at: str | None = None
     budget: float | None = None
     link_code: str | None = None
+    meta_campaign_id: str | None = None
 
 
 class CampaignResponse(BaseModel):
@@ -26,3 +27,4 @@ class CampaignResponse(BaseModel):
     ended_at: str | None
     budget: float | None
     link_code: str | None
+    meta_campaign_id: str | None = None

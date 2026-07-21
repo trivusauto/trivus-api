@@ -17,4 +17,5 @@ class CampaignModel(Base):
     started_at: Mapped[date] = mapped_column(Date)
     ended_at: Mapped[date | None] = mapped_column(Date, nullable=True)
     budget: Mapped[float | None] = mapped_column(Numeric(14, 2), nullable=True)
+    meta_campaign_id: Mapped[str | None] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

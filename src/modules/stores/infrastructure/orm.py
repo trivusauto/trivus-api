@@ -16,6 +16,7 @@ class StoreModel(Base):
     require_campaign_on_lead: Mapped[bool] = mapped_column(Boolean, default=False)
     company_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)
     webhook_token: Mapped[str | None] = mapped_column(String, nullable=True)
+    meta_ad_account_id: Mapped[str | None] = mapped_column(String, nullable=True)
     shop_role_labels: Mapped[dict[str, object] | None] = mapped_column(JSONB, nullable=True)
     active: Mapped[bool] = mapped_column(Boolean, default=True)
     last_assigned_sdr_id: Mapped[str | None] = mapped_column(UUID(as_uuid=False), nullable=True)

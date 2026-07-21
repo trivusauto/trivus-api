@@ -14,7 +14,7 @@ def _to_domain(r: CampaignModel) -> Campaign:
                     started_at=r.started_at.isoformat(),
                     ended_at=r.ended_at.isoformat() if r.ended_at else None,
                     budget=float(r.budget) if r.budget is not None else None,
-                    link_code=r.link_code)
+                    link_code=r.link_code, meta_campaign_id=r.meta_campaign_id)
 
 
 class CampaignRepository:
@@ -66,6 +66,9 @@ class CampaignRepository:
             row.link_code = str(data["link_code"]) if data["link_code"] is not None else None
         if "budget" in data:
             row.budget = data["budget"]  # type: ignore[assignment]
+        if "meta_campaign_id" in data:
+            row.meta_campaign_id = (str(data["meta_campaign_id"])
+                                    if data["meta_campaign_id"] is not None else None)
         if data.get("started_at"):
             row.started_at = date.fromisoformat(str(data["started_at"]))
         if "ended_at" in data:

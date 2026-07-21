@@ -10,3 +10,4 @@ class Campaign:
     ended_at: str | None       # None = ativa
     budget: float | None
     link_code: str | None
+    meta_campaign_id: str | None = None

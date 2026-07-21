@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     n8n_interest_webhook_url: str | None = None
     billing_gateway_enabled: bool = False
     billing_token: str = "dev-billing-token"
+    meta_enabled: bool = False
+    meta_access_token: str = ""
+    meta_token: str = "dev-meta-token"
 
 
 @lru_cache

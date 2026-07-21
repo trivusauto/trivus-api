@@ -25,7 +25,8 @@ router = APIRouter(tags=["marketing"])
 
 def _resp(c: Campaign) -> CampaignResponse:
     return CampaignResponse(id=c.id, store_id=c.store_id, name=c.name, started_at=c.started_at,
-                            ended_at=c.ended_at, budget=c.budget, link_code=c.link_code)
+                            ended_at=c.ended_at, budget=c.budget, link_code=c.link_code,
+                            meta_campaign_id=c.meta_campaign_id)
 
 
 @router.get("/campaigns", dependencies=[Depends(require_feature("marketing.campaigns")), Depends(require_store_access)])

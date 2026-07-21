@@ -8,7 +8,8 @@ from src.modules.stores.domain.ports import StoreAccessReader, StoreRepository, 
 from src.modules.stores.infrastructure.orm import StoreModel, UserStoreAccessModel
 
 _UPDATABLE = {"nome_fantasia", "razao_social", "cnpj", "crm_enabled", "zapi_webhook_enabled",
-              "webhook_token", "active", "company_id", "require_campaign_on_lead"}
+              "webhook_token", "active", "company_id", "require_campaign_on_lead",
+              "meta_ad_account_id"}
 
 
 def _to_domain(row: StoreModel) -> Store:
