@@ -50,6 +50,7 @@ from src.modules.crm.interface.schemas import (
 )
 from src.shared.infrastructure.database import get_session
 from src.shared.interface.feature_gate import require_feature
+from src.shared.interface.store_access import assert_store_access, require_store_access
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from src.shared.interface.rbac import require_roles
 
@@ -57,7 +58,7 @@ router = APIRouter(prefix="/crm", tags=["crm"])
 admin_router = APIRouter(tags=["crm-admin"])  # sem prefixo: rotas /admin/crm/*
 
 
-@router.get("/funnels", dependencies=[Depends(require_feature("crm.kanban"))])
+@router.get("/funnels", dependencies=[Depends(require_feature("crm.kanban")), Depends(require_store_access)])
 async def list_funnels(
     store_id: str = Query(...),
     _: CurrentUser = Depends(get_current_user),
@@ -85,7 +86,7 @@ async def rename_stage(
     return await uc.execute(stage_id, body.name)
 
 
-@router.get("/leads", dependencies=[Depends(require_feature("crm.kanban"))])
+@router.get("/leads", dependencies=[Depends(require_feature("crm.kanban")), Depends(require_store_access)])
 async def list_leads(
     store_id: str = Query(...),
     user: CurrentUser = Depends(get_current_user),
@@ -97,9 +98,11 @@ async def list_leads(
 @router.post("/leads", status_code=201)
 async def create_lead(
     body: CreateLeadRequest,
-    _: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user),
     repo: LeadRepository = Depends(get_lead_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
+    await assert_store_access(body.store_id, user, session)
     return await CreateLeadUseCase(repo).execute(body.model_dump(exclude_none=True))
 
 

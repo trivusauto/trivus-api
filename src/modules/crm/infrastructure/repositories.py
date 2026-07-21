@@ -13,7 +13,7 @@ from src.modules.crm.infrastructure.orm import (
     StageHistoryModel,
     StageModel,
 )
-from src.shared.domain.errors import NotFoundError
+from src.shared.domain.errors import DomainError, NotFoundError
 
 
 def lead_to_dict(r: LeadModel) -> dict[str, object]:
@@ -33,18 +33,36 @@ _DATE_FIELDS = ("data_agendamento", "data_marcacao_agendamento", "data_comparece
 _MONEY_FIELDS = ("valor_tabela_fipe", "saldo_quitacao", "valor_pretendido", "valor_compra", "receita", "despesa", "rentabilidade")
 
 
+_MAX_NUMERIC = 10 ** 12  # NUMERIC(14,2): 12 dígitos antes da vírgula
+
+
+def _is_uuid(v: object) -> bool:
+    try:
+        uuid.UUID(str(v))
+    except (ValueError, AttributeError, TypeError):
+        return False
+    return True
+
+
 def _coerce_dates(data: dict[str, object]) -> dict[str, object]:
     """Colunas DATE exigem datetime.date e NUMERIC exige número no asyncpg;
-    API/domínio trafegam strings ("2026-07-20", "85.000,00")."""
+    API/domínio trafegam strings ("2026-07-20", "85.000,00"). Input inválido
+    vira erro de domínio (400), nunca 500."""
     out = dict(data)
     for k in _DATE_FIELDS:
         v = out.get(k)
         if isinstance(v, str) and v:
-            out[k] = date.fromisoformat(v[:10])
+            try:
+                out[k] = date.fromisoformat(v[:10])
+            except ValueError as exc:
+                raise DomainError(f"Data inválida em '{k}': use AAAA-MM-DD.") from exc
     for k in _MONEY_FIELDS:
         v = out.get(k)
         if isinstance(v, str):
-            out[k] = parse_optional_money(v)
+            n = parse_optional_money(v)
+            if n is not None and abs(n) >= _MAX_NUMERIC:
+                raise DomainError(f"Valor de '{k}' fora da faixa suportada.")
+            out[k] = n
     return out
 
 
@@ -156,6 +174,8 @@ class LeadRepository:
         return [lead_to_dict(r) for r in rows]
 
     async def get(self, lead_id: str) -> dict[str, object] | None:
+        if not _is_uuid(lead_id):
+            return None
         r = await self._session.get(LeadModel, lead_id)
         return lead_to_dict(r) if r else None
 
@@ -172,6 +192,8 @@ class LeadRepository:
         return lead_to_dict(row)
 
     async def update(self, lead_id: str, data: dict[str, object]) -> dict[str, object]:
+        if not _is_uuid(lead_id):
+            raise NotFoundError("Lead não encontrado")
         row = await self._session.get(LeadModel, lead_id)
         if row is None:
             raise NotFoundError("Lead não encontrado")
@@ -182,6 +204,8 @@ class LeadRepository:
         return lead_to_dict(row)
 
     async def delete(self, lead_id: str) -> None:
+        if not _is_uuid(lead_id):
+            raise NotFoundError("Lead não encontrado")
         await self._session.execute(delete(LeadModel).where(LeadModel.id == lead_id))
 
     async def count_in_stage(self, stage_id: str) -> int:

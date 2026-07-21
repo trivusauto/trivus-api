@@ -82,6 +82,8 @@ async def projections(
     access: GetAccessibleStoreIdsUseCase = Depends(get_accessible_uc),
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
 ) -> dict[str, object]:
+    if not 1 <= month <= 12:
+        raise DomainError("Mês inválido (use 1-12).")
     return await uc.execute(await _resolve(user, store_id, access, stores), year, month)
 
 

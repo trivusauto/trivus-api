@@ -11,6 +11,7 @@ from src.modules.marketing.interface.deps import (
     get_marketing_funnel_uc, get_update_campaign_uc,
 )
 from src.modules.metrics.interface.deps import get_accessible_uc
+from src.shared.interface.store_access import require_store_access
 from src.modules.stores.application.get_accessible_stores import GetAccessibleStoreIdsUseCase
 from src.shared.domain.errors import ForbiddenError
 from src.modules.marketing.interface.schemas import (
@@ -27,7 +28,7 @@ def _resp(c: Campaign) -> CampaignResponse:
                             ended_at=c.ended_at, budget=c.budget, link_code=c.link_code)
 
 
-@router.get("/campaigns", dependencies=[Depends(require_feature("marketing.campaigns"))])
+@router.get("/campaigns", dependencies=[Depends(require_feature("marketing.campaigns")), Depends(require_store_access)])
 async def list_campaigns(store_id: str = Query(...), _: CurrentUser = Depends(get_current_user),
                          uc: ListCampaignsUseCase = Depends(get_list_campaigns_uc)) -> list[CampaignResponse]:
     return [_resp(c) for c in await uc.execute(store_id)]
