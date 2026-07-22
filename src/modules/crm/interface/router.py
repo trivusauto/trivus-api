@@ -48,6 +48,7 @@ from src.modules.crm.interface.schemas import (
     RenameRequest,
     UpdateLeadRequest,
 )
+from src.modules.auth.infrastructure.repository import SqlAlchemyUserRepository
 from src.shared.infrastructure.database import get_session
 from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.store_access import assert_store_access, require_store_access
@@ -89,10 +90,12 @@ async def rename_stage(
 @router.get("/leads", dependencies=[Depends(require_feature("crm.kanban")), Depends(require_store_access)])
 async def list_leads(
     store_id: str = Query(...),
+    assigned_to: str | None = Query(None, description="Filtra por responsável (id do usuário ou '__unassigned__')."),
     user: CurrentUser = Depends(get_current_user),
     repo: LeadRepository = Depends(get_lead_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> list[dict[str, object]]:
-    return await ListLeadsUseCase(repo).execute(store_id, user)
+    return await ListLeadsUseCase(repo, SqlAlchemyUserRepository(session)).execute(store_id, user, assigned_to)
 
 
 @router.post("/leads", status_code=201)

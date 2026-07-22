@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.crm.domain.lead_patch import parse_optional_money
@@ -165,10 +165,32 @@ class LeadRepository:
     def __init__(self, session: AsyncSession) -> None:
         self._session = session
 
-    async def list_for_board(self, store_id: str, user: object) -> list[dict[str, object]]:
+    async def list_for_board(
+        self,
+        store_id: str,
+        *,
+        restrict_to_user: str | None = None,
+        include_unassigned: bool = False,
+        assigned_to: str | None = None,
+    ) -> list[dict[str, object]]:
+        """Lista os leads do quadro com visibilidade + filtro opcional por responsável.
+
+        Visibilidade (espelha o legado): quando ``restrict_to_user`` é informado, o usuário
+        só vê os próprios leads — e, se ``include_unassigned``, também os não atribuídos.
+        Gerente/dono/admin recebem ``restrict_to_user=None`` (veem o funil inteiro da loja).
+        ``assigned_to`` é um filtro adicional (id do responsável ou ``"__unassigned__"``) que
+        apenas restringe dentro do que já é visível — nunca amplia o acesso.
+        """
         stmt = select(LeadModel).where(LeadModel.store_id == store_id)
-        if getattr(user, "role", None) == "shop_user":
-            stmt = stmt.where(LeadModel.assigned_to == getattr(user, "user_id", None))
+        if restrict_to_user is not None:
+            if include_unassigned:
+                stmt = stmt.where(or_(LeadModel.assigned_to == restrict_to_user, LeadModel.assigned_to.is_(None)))
+            else:
+                stmt = stmt.where(LeadModel.assigned_to == restrict_to_user)
+        if assigned_to == "__unassigned__":
+            stmt = stmt.where(LeadModel.assigned_to.is_(None))
+        elif assigned_to:
+            stmt = stmt.where(LeadModel.assigned_to == assigned_to)
         stmt = stmt.order_by(LeadModel.stage_id, LeadModel.sort_order)
         rows = (await self._session.execute(stmt)).scalars().all()
         return [lead_to_dict(r) for r in rows]
