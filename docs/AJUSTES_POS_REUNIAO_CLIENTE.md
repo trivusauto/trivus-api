@@ -9,6 +9,12 @@
 > Legenda de esforço: 🟢 pequeno (horas) · 🟡 médio (1-2 dias) · 🔴 grande (3+ dias).
 > Itens marcados ⚠️ DECISÃO precisam de resposta do Giovani antes de codar.
 > Itens marcados 📎 ASSET dependem de material que o cliente ainda vai mandar.
+>
+> **ATUALIZAÇÃO 23/07:** os assets dos itens 2, 5 e 6 CHEGARAM. Os itens 2, 5 e 6 estão
+> agora detalhados em **`docs/SPEC_MARKETING_RELATORIOS.md`** (funil fixo da Visão Geral,
+> tela de Marketing com funil meta×realizado/KPIs/linhas, e Relatórios como Painel
+> Executivo multi-loja). Aquele doc também fixa o semáforo oficial: ≥95% verde ·
+> 80–95% âmbar · <80% vermelho (substitui os limiares sugeridos nos itens 7 e 13.4).
 
 ---
 
@@ -229,7 +235,7 @@ Hoje o filtro de coluna seleciona 1 coluna. Trocar por multi-seleção (ex.: ver
 
 ## 13. Pendências para o Giovani resolver antes/durante
 
-1. 📎 **Print do design do funil** (item 2) e 📎 **print da planilha** do marketing (item 5).
+1. ~~📎 Print do design do funil (item 2) e print da planilha do marketing (item 5)~~ — **RECEBIDOS 23/07**; ver `SPEC_MARKETING_RELATORIOS.md`.
 2. ⚠️ Confirmar a mudança de privacidade do CRM (3.5): todo SDR passa a VER os leads dos colegas (hoje não vê) — ok?
 3. ⚠️ Decidir o comportamento da loja sem empresa (11): opção A, B ou C.
 4. Confirmar os limiares dos semáforos (7 e 9): projeções ≥100% verde / 80-99% amarelo / <80% vermelho; plano de ação ≤7 dias amarelo / vencido vermelho.
