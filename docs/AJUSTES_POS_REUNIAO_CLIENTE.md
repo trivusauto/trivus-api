@@ -78,19 +78,17 @@ Hoje o card mostra há quantos dias está na etapa (ex. `25d`). Trocar por **dat
 ### 3.4 Filtro por MÚLTIPLAS colunas — 🟢 viável
 Hoje o filtro de coluna seleciona 1 coluna. Trocar por multi-seleção (ex.: ver só RECEBIDOS + CLASSIFICADOS + QUALIFICADOS). Front-only: trocar o `<select>` de `stageFilter` por um dropdown com checkboxes; estado vira `string[]`; board renderiza `stages.filter(st => sel.length === 0 || sel.includes(st.id))`.
 
-### 3.5 Permissão de edição: ver tudo × mexer só no seu — 🟡 viável · ⚠️ DECISÃO
-**O que o cliente quer:** usuário comum (SDR/vendedor) **vê o kanban inteiro**, mas uma **flag por usuário** (controlada pelo admin/gerente; o usuário não vê a flag) define se ele pode mexer nos cards dos colegas:
-- flag **ativa** (restrito): vê tudo, mas só move/edita os cards atribuídos a ele;
-- flag **desativada**: vê tudo e mexe em qualquer card.
+### 3.5 Permissão de edição: todos VEEM, editar os dos colegas exige autorização — 🟡 viável · ✅ DECIDIDO (23/07)
+**Regra confirmada pelo Giovani:** TODO usuário da loja (SDR/vendedor/etc.) **vê o kanban inteiro**. Por padrão, cada um **só pode mover/editar os próprios cards**. Para mexer nos cards dos colegas, precisa de **autorização concedida por um usuário superior** (admin Trivus, dono ou gerente da loja) — uma flag por usuário que o próprio usuário NÃO vê.
 
 **Como fazer:**
-1. Migration: coluna `restrict_edit_to_own_leads BOOLEAN DEFAULT false` em `users`.
-2. Backend: nos endpoints de escrita de lead (`PATCH /crm/leads/{id}`, `/stage`, `/agendamento`, `/compareceu`, `/fechamento`, `DELETE`) — se o usuário é shop_user com a flag ativa e `lead.assigned_to != user_id` (e `vendedor_id != user_id`), retornar 403 com mensagem amigável ("Este lead pertence a outro colaborador.").
+1. Migration: coluna `can_edit_others_leads BOOLEAN DEFAULT false` em `users` (**default = restrito**; a autorização é concedida, não retirada).
+2. Backend: nos endpoints de escrita de lead (`PATCH /crm/leads/{id}`, `/stage`, `/agendamento`, `/compareceu`, `/fechamento`, `DELETE`) — se o usuário é shop_user comum (não gerente) SEM a flag e `lead.assigned_to != user_id` (e `vendedor_id != user_id`), retornar 403 amigável ("Este lead pertence a outro colaborador. Peça autorização ao gerente."). Gerente, dono e admin sempre editam tudo.
 3. Visibilidade de leitura: **todo shop_user passa a ver o quadro inteiro** (remover o filtro por `assigned_to` do `list_for_board`).
-4. UI de gestão: na tela **Usuários**, o admin/dono/gerente vê o toggle "Pode editar leads de outros colaboradores" ao criar/editar membro da equipe.
-5. Front CRM: com a flag ativa, cards de outros ficam com drag desabilitado + tooltip; drawer abre em modo leitura.
+4. UI de gestão: na tela **Usuários**, admin/dono/gerente veem o toggle "Pode editar leads de outros colaboradores" ao criar/editar membro da equipe. O próprio usuário nunca vê essa flag.
+5. Front CRM: sem a flag, cards dos colegas ficam com drag desabilitado + tooltip explicando; drawer abre em modo leitura.
 
-**⚠️ IMPACTO IMPORTANTE:** isso **substitui** a regra de visibilidade atual (que espelha o legado: SDR só vê os próprios leads — implementada em `ListLeadsUseCase`/`list_for_board` e travada por `tests/e2e/test_crm_visibility.py`). Os testes devem ser **reescritos** para a nova regra (todos veem; escrita restrita pela flag). Confirmar com o cliente que todo SDR pode VER os leads dos colegas — é mudança de privacidade interna. `can_see_unassigned_leads` continua existindo para o round-robin do webhook.
+**Impacto:** substitui a regra de visibilidade atual (legado: SDR só via os próprios — `ListLeadsUseCase`/`list_for_board`). **Reescrever `tests/e2e/test_crm_visibility.py`** para a nova regra: leitura liberada para toda a equipe da loja; escrita restrita pela flag (default restrito). `can_see_unassigned_leads` continua existindo para o round-robin do webhook. O filtro "Responsável" do quadro passa a valer para todos (todos agora veem o quadro inteiro).
 
 ---
 
@@ -203,7 +201,7 @@ Hoje o filtro de coluna seleciona 1 coluna. Trocar por multi-seleção (ex.: ver
 
 ---
 
-## 11. Usuários / Lojas / Empresas — 🟡 viável · ⚠️ DECISÃO
+## 11. Usuários / Lojas / Empresas — 🟡 viável · ✅ DECIDIDO (23/07)
 
 **O que o cliente quer (novo modelo mental — a LOJA é o centro):**
 1. Admin da Trivus cria a **loja** e, **no mesmo fluxo, os gerentes** dela (1+, junto da criação).
@@ -215,10 +213,10 @@ Hoje o filtro de coluna seleciona 1 coluna. Trocar por multi-seleção (ex.: ver
 - Criação de loja + gerentes: no front, o modal "Nova loja" (admin) ganha a seção "Gerentes" (nome/email/senha, 1+ obrigatório). Backend: preferível `POST /admin/stores` aceitar `managers[]` (atômico); alternativa aceitável: fluxo em sequência (POST loja → POST team com `shop_role=gerente`) com validação no front.
 - Gerente criar equipe: abrir `POST /stores/{store_id}/team` (e o GET) para shop_user com `shop_role=gerente` **da própria loja** (guard: `user.parent_store_id == store_id`). Hoje é `require_roles("admin","client")` em `src/modules/users/interface/router.py`.
 - SDR sem botão: front esconde por papel; backend segue bloqueando.
-- Loja sem empresa: `stores.company_id` **já é nullable**. PORÉM ⚠️: os gates exigem empresa+assinatura para habilitar serviços (`store_services.py` lança "Loja sem empresa vinculada (modo legado)"). **DECISÃO NECESSÁRIA — o que uma loja sem empresa enxerga?**
-  - Opção A (recomendada): loja sem empresa opera em "modo legado" com acesso a um conjunto padrão (ex.: equivalente ao plano Full) até ser vinculada;
-  - Opção B: loja sem empresa fica só com CRM;
-  - Opção C: como hoje (tudo bloqueado até vincular) — contradiz o pedido do cliente.
+- Loja sem empresa — ✅ **DECIDIDO (Opção A): a loja funciona NORMALMENTE sem empresa vinculada.**
+  - `stores.company_id` já é nullable; o que muda é o resolvedor de entitlements (`src/modules/ecosystem/`): quando `company_id IS NULL`, retornar o **conjunto padrão completo** de feature_keys (equivalente ao plano Full — todos os serviços de software), até a loja ser vinculada a uma empresa. A partir do vínculo, passa a valer o plano da assinatura da empresa (inclusive suspensão).
+  - Ajustar `store_services.py`: habilitar/desabilitar serviço numa loja sem empresa deixa de lançar o erro "Loja sem empresa vinculada (modo legado)".
+  - Testes: loja sem empresa acessa CRM/métricas/marketing normalmente; loja vinculada a assinatura suspensa continua toda bloqueada (regra atual mantida).
 
 ---
 
@@ -236,6 +234,6 @@ Hoje o filtro de coluna seleciona 1 coluna. Trocar por multi-seleção (ex.: ver
 ## 13. Pendências para o Giovani resolver antes/durante
 
 1. ~~📎 Print do design do funil (item 2) e print da planilha do marketing (item 5)~~ — **RECEBIDOS 23/07**; ver `SPEC_MARKETING_RELATORIOS.md`.
-2. ⚠️ Confirmar a mudança de privacidade do CRM (3.5): todo SDR passa a VER os leads dos colegas (hoje não vê) — ok?
-3. ⚠️ Decidir o comportamento da loja sem empresa (11): opção A, B ou C.
-4. Confirmar os limiares dos semáforos (7 e 9): projeções ≥100% verde / 80-99% amarelo / <80% vermelho; plano de ação ≤7 dias amarelo / vencido vermelho.
+2. ✅ ~~Privacidade do CRM (3.5)~~ — **DECIDIDO 23/07:** todos da loja VEEM o quadro inteiro; editar cards dos colegas exige a flag `can_edit_others_leads`, concedida por admin/dono/gerente (default = restrito).
+3. ✅ ~~Loja sem empresa (11)~~ — **DECIDIDO 23/07: Opção A** — a loja funciona normalmente sem empresa (entitlements padrão completos até vincular).
+4. ✅ ~~Limiares dos semáforos~~ — fixados pelo design em `SPEC_MARKETING_RELATORIOS.md`: **≥95% verde · 80–95% âmbar · <80% vermelho** (vale para Marketing, Relatórios, Projeções e Metas). Plano de ação segue: ≤7 dias do prazo = amarelo · vencido = vermelho.
