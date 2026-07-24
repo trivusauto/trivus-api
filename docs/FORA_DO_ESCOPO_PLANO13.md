@@ -86,6 +86,23 @@ somado à checagem explícita onde a mensagem para o usuário importa.
 
 ---
 
+## 6. "Investimento total" cair deve ser verde ou vermelho? (S4.5)
+
+**Onde:** `trivus-web/src/app/(app)/marketing/page.tsx` — card "Investimento total".
+
+**O que é:** a spec manda inverter a cor "para métricas de CUSTO" (cair = verde). Apliquei
+isso aos custos **por unidade**: CPL, Custo/Classificado, Custo/Lead Qualificado e CAC.
+O **Investimento total** deixei como métrica normal (cair = vermelho).
+
+**Por que:** gastar menos em mídia não é automaticamente bom — em geral significa menos
+atividade, não mais eficiência. Já CPL/CAC caindo é eficiência de verdade.
+
+**Precisa de decisão:** se você considera "gastou menos" um ganho, é uma linha só
+(`isCost: true` no card). Hoje um ↓ no investimento aparece em vermelho, o que pode
+confundir. A terceira opção seria um estado neutro (cinza) para esse card específico.
+
+---
+
 ## 4. Lead nunca movido não tem histórico de etapa
 
 **Onde:** `trivus-api/src/modules/crm/application/` — criação de lead.
