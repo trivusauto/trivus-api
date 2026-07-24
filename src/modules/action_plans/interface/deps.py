@@ -1,7 +1,8 @@
 from fastapi import Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 from src.modules.action_plans.application.use_cases import (
-    CreateActionPlanUseCase, DeleteActionPlanUseCase, ListActionPlansUseCase, UpdateActionPlanUseCase,
+    CreateActionPlanUseCase, DeleteActionPlanUseCase, ListActionPlansUseCase, StepsUseCase,
+    UpdateActionPlanUseCase,
 )
 from src.modules.action_plans.infrastructure.repository import ActionPlanRepository
 from src.shared.infrastructure.database import get_session
@@ -25,3 +26,7 @@ def update_uc(r: ActionPlanRepository = Depends(_repo)) -> UpdateActionPlanUseCa
 
 def delete_uc(r: ActionPlanRepository = Depends(_repo)) -> DeleteActionPlanUseCase:
     return DeleteActionPlanUseCase(r)
+
+
+def steps_uc(r: ActionPlanRepository = Depends(_repo)) -> StepsUseCase:
+    return StepsUseCase(r)
