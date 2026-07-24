@@ -35,6 +35,7 @@ from src.modules.crm.interface.deps import (
     get_rename_stage_uc,
     get_stage_repo,
     get_sync_template_uc,
+    guard_lead_write,
 )
 from src.modules.crm.interface.schemas import (
     AgendamentoRequest,
@@ -109,7 +110,7 @@ async def create_lead(
     return await CreateLeadUseCase(repo).execute(body.model_dump(exclude_none=True))
 
 
-@router.patch("/leads/{lead_id}")
+@router.patch("/leads/{lead_id}", dependencies=[Depends(guard_lead_write)])
 async def update_lead(
     lead_id: str,
     body: UpdateLeadRequest,
@@ -119,7 +120,7 @@ async def update_lead(
     return await UpdateLeadUseCase(repo).execute(lead_id, body.model_dump(exclude_none=True))
 
 
-@router.delete("/leads/{lead_id}", status_code=204)
+@router.delete("/leads/{lead_id}", status_code=204, dependencies=[Depends(guard_lead_write)])
 async def delete_lead(
     lead_id: str,
     _: CurrentUser = Depends(get_current_user),
@@ -128,7 +129,7 @@ async def delete_lead(
     await DeleteLeadUseCase(repo).execute(lead_id)
 
 
-@router.patch("/leads/{lead_id}/stage")
+@router.patch("/leads/{lead_id}/stage", dependencies=[Depends(guard_lead_write)])
 async def move_lead(
     lead_id: str,
     body: MoveLeadRequest,
@@ -144,7 +145,7 @@ async def move_lead(
     return await uc.execute(lead_id, body.to_stage_id, user)
 
 
-@router.patch("/leads/{lead_id}/agendamento")
+@router.patch("/leads/{lead_id}/agendamento", dependencies=[Depends(guard_lead_write)])
 async def set_agendamento(
     lead_id: str,
     body: AgendamentoRequest,
@@ -154,7 +155,7 @@ async def set_agendamento(
     return await SetAgendamentoUseCase(repo, LeadPatch()).execute(lead_id, body.data_agendamento, body.hora_agendamento, user)
 
 
-@router.patch("/leads/{lead_id}/comparecimento")
+@router.patch("/leads/{lead_id}/comparecimento", dependencies=[Depends(guard_lead_write)])
 async def set_comparecimento(
     lead_id: str,
     body: CompareceuRequest,
@@ -164,7 +165,7 @@ async def set_comparecimento(
     return await SetCompareceuUseCase(repo, LeadPatch()).execute(lead_id, body.compareceu)
 
 
-@router.patch("/leads/{lead_id}/fechamento")
+@router.patch("/leads/{lead_id}/fechamento", dependencies=[Depends(guard_lead_write)])
 async def set_fechamento(
     lead_id: str,
     body: FechamentoRequest,
