@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import delete, func, or_, select
+from sqlalchemy import and_, delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.modules.crm.domain.lead_patch import parse_optional_money
@@ -192,8 +192,24 @@ class LeadRepository:
         elif assigned_to:
             stmt = stmt.where(LeadModel.assigned_to == assigned_to)
         stmt = stmt.order_by(LeadModel.stage_id, LeadModel.sort_order)
-        rows = (await self._session.execute(stmt)).scalars().all()
-        return [lead_to_dict(r) for r in rows]
+
+        # Data de entrada na etapa ATUAL: uma subquery agregada (MAX por lead+etapa)
+        # unida ao lead — sem loop e sem N+1.
+        entered = (
+            select(
+                StageHistoryModel.lead_id.label("lead_id"),
+                StageHistoryModel.stage_id.label("stage_id"),
+                func.max(StageHistoryModel.entered_at).label("entered_at"),
+            )
+            .group_by(StageHistoryModel.lead_id, StageHistoryModel.stage_id)
+            .subquery()
+        )
+        stmt = stmt.add_columns(entered.c.entered_at).outerjoin(
+            entered,
+            and_(entered.c.lead_id == LeadModel.id, entered.c.stage_id == LeadModel.stage_id),
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return [{**lead_to_dict(lead), "stage_entered_at": entered_at} for lead, entered_at in rows]
 
     async def get(self, lead_id: str) -> dict[str, object] | None:
         if not _is_uuid(lead_id):

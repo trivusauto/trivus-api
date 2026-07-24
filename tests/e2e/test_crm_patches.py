@@ -148,3 +148,47 @@ async def test_resgate_e_carimbos_de_datas_por_coluna(client: AsyncClient) -> No
 
     res = await client.patch(f"/crm/leads/{lead['id']}", json={"data_fechou_negocio": "2026-06-15"}, headers=headers)
     assert res.json()["data_fechou_negocio"] == "2026-06-15"
+
+
+@pytest.mark.asyncio
+async def test_stage_entered_at_muda_ao_mover_de_etapa(client: AsyncClient) -> None:
+    """O board expõe a data de entrada na etapa ATUAL (S2.4)."""
+    headers = await _admin(client)
+    store_id, first_stage = await _store_with_funnel(client, headers)
+    funnels = (await client.get(f"/crm/funnels?store_id={store_id}", headers=headers)).json()
+    stages = funnels[0]["stages"]
+    target_stage = stages[1]["id"]
+
+    lead = (await client.post(
+        "/crm/leads",
+        json={
+            "store_id": store_id,
+            "stage_id": first_stage,
+            "funil": "receptivo",
+            "nome": "Lead Entrada",
+            "telefone": "(11) 90000-0009",
+        },
+        headers=headers,
+    )).json()
+
+    def _entered(board: list[dict[str, object]]) -> object:
+        return next(item["stage_entered_at"] for item in board if item["id"] == lead["id"])
+
+    # Lead nunca movido não tem histórico de etapa — o board devolve None (o front
+    # faz fallback para a data de criação).
+    board = (await client.get(f"/crm/leads?store_id={store_id}", headers=headers)).json()
+    before = _entered(board)
+    assert before is None
+
+    await client.patch(
+        f"/crm/leads/{lead['id']}/agendamento",
+        json={"data_agendamento": "2026-07-20", "hora_agendamento": "14:30"},
+        headers=headers,
+    )
+    res = await client.patch(f"/crm/leads/{lead['id']}/stage", json={"to_stage_id": target_stage}, headers=headers)
+    assert res.status_code == 200, res.text
+
+    board = (await client.get(f"/crm/leads?store_id={store_id}", headers=headers)).json()
+    after = _entered(board)
+    assert after is not None, "após mover, a etapa atual tem data de entrada"
+    assert after != before
