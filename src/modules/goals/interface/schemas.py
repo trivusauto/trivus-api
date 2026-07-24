@@ -9,6 +9,7 @@ class UpsertGoalRequest(BaseModel):
     month: int
     origin: str
     leads_quantity: int = 0
+    classified_quantity: int = 0
     qualified_quantity: int = 0
     scheduled_quantity: int = 0
     attended_quantity: int = 0
@@ -31,7 +32,7 @@ class UpsertGoalRequest(BaseModel):
             raise ValueError(f"origin must be one of {_ORIGINS}")
         return v
 
-    @field_validator("leads_quantity", "qualified_quantity", "scheduled_quantity", "attended_quantity", "conversions_quantity")
+    @field_validator("leads_quantity", "classified_quantity", "qualified_quantity", "scheduled_quantity", "attended_quantity", "conversions_quantity")
     @classmethod
     def non_negative(cls, v: int) -> int:
         if v < 0:

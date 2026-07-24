@@ -1,0 +1,12 @@
+# TEMPORÁRIO (não commitar) — portas alternativas p/ não conflitar com a stack
+# 'checkout' do usuário (ocupa 3001/5433). api=3011 web=3010 db=5443.
+services:
+  db:
+    ports: !override
+      - '5443:5432'
+  api:
+    ports: !override
+      - '3011:3001'
+  web:
+    ports: !override
+      - '3010:3000'

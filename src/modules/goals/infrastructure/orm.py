@@ -12,6 +12,7 @@ class GoalModel(Base):
     month: Mapped[int] = mapped_column(Integer)
     origin: Mapped[str] = mapped_column(String)
     leads_quantity: Mapped[int] = mapped_column(Integer, default=0)
+    classified_quantity: Mapped[int] = mapped_column(Integer, default=0)
     qualified_quantity: Mapped[int] = mapped_column(Integer, default=0)
     scheduled_quantity: Mapped[int] = mapped_column(Integer, default=0)
     attended_quantity: Mapped[int] = mapped_column(Integer, default=0)
