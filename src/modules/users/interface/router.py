@@ -17,10 +17,26 @@ from src.modules.users.interface.schemas import (
     CreateTeamUserRequest,
     PortalUserResponse,
 )
-from src.shared.interface.auth_deps import CurrentUser
+from src.shared.domain.errors import ForbiddenError
+from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from src.shared.interface.rbac import require_roles
 
 router = APIRouter(tags=["users"])
+
+
+async def require_team_read_access(
+    store_id: str,
+    user: CurrentUser = Depends(get_current_user),
+    repo: SqlAlchemyUserRepository = Depends(get_user_repo),
+) -> CurrentUser:
+    """Admin/dono sempre; gerente apenas na própria loja. Qualquer outro caso → 403."""
+    if user.role in ("admin", "client"):
+        return user
+    if user.role == "shop_user":
+        u = await repo.get_by_id(user.user_id)
+        if u and u.shop_role == "gerente" and str(u.parent_store_id) == store_id:
+            return user
+    raise ForbiddenError("Acesso negado para o seu perfil.")
 
 
 @router.get("/admin/users")
@@ -55,7 +71,7 @@ async def assign_stores(
 @router.get("/stores/{store_id}/team")
 async def list_team(
     store_id: str,
-    _: CurrentUser = Depends(require_roles("admin", "client")),
+    _: CurrentUser = Depends(require_team_read_access),
     repo: SqlAlchemyUserRepository = Depends(get_user_repo),
 ) -> list[PortalUserResponse]:
     return [PortalUserResponse(id=u.id, email=u.email, name=u.name, role=u.role, active=u.active) for u in await repo.list_team(store_id)]
