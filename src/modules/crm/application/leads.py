@@ -26,29 +26,16 @@ class ListLeadsUseCase:
     async def execute(
         self, store_id: str, user: object, assigned_to: str | None = None
     ) -> list[dict[str, object]]:
-        """Resolve a visibilidade do quadro por papel (espelha o legado) e aplica
-        o filtro opcional por responsável.
+        """LEITURA LIBERADA (decisão do cliente 23/07): todo usuário com acesso à
+        loja vê o quadro inteiro, independente do papel.
 
-        - admin / client (dono) → veem o funil inteiro da loja.
-        - shop_user gerente → vê tudo.
-        - shop_user com ``can_see_unassigned_leads`` → próprios + não atribuídos.
-        - demais shop_users (sdr, vendedor) → só os próprios.
+        A restrição passou a ser de ESCRITA, não de leitura — ver
+        ``crm/application/edit_guard.py``. O param ``assigned_to`` segue como filtro
+        opcional (o front usa no seletor "Responsável").
+
+        ``can_see_unassigned_leads`` continua existindo para o round-robin do webhook.
         """
-        restrict_to_user: str | None = None
-        include_unassigned = False
-        if getattr(user, "role", None) == "shop_user":
-            uid = getattr(user, "user_id", None)
-            u = await self._users.get_by_id(uid) if (self._users and uid) else None
-            is_manager = bool(u and getattr(u, "shop_role", None) == "gerente")
-            if not is_manager:
-                restrict_to_user = uid
-                include_unassigned = bool(u and getattr(u, "can_see_unassigned_leads", False))
-        return await self._leads.list_for_board(
-            store_id,
-            restrict_to_user=restrict_to_user,
-            include_unassigned=include_unassigned,
-            assigned_to=assigned_to,
-        )
+        return await self._leads.list_for_board(store_id, assigned_to=assigned_to)
 
 
 class DeleteLeadUseCase:

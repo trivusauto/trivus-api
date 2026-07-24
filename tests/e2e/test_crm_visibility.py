@@ -1,11 +1,12 @@
-"""Visibilidade do quadro de CRM por papel (espelha o legado) + filtro por responsável.
+"""Visibilidade do quadro de CRM + filtro por responsável.
 
-Regra (trivus/app/crm/page.js:497-503):
-- admin / dono (client) → veem o funil inteiro da loja;
-- shop_user gerente → vê tudo;
-- shop_user com can_see_unassigned_leads → próprios + não atribuídos;
-- demais shop_users (sdr, vendedor) → só os próprios.
-O parâmetro ``assigned_to`` apenas restringe dentro do que já é visível (nunca amplia).
+Regra NOVA (decisão do cliente 23/07, substitui a do legado):
+- TODO usuário com acesso à loja vê o quadro INTEIRO, qualquer que seja o papel;
+- a restrição passou a ser de ESCRITA (ver ``test_crm_edit_guard.py``);
+- ``assigned_to`` é filtro de exibição — agora vale para todos, inclusive SDR.
+
+``can_see_unassigned_leads`` continua existindo para o round-robin do webhook,
+mas NÃO restringe mais a leitura.
 """
 from uuid import uuid4
 
@@ -26,12 +27,13 @@ async def _store_with_funnel(client, headers, name):
     return st["id"], f[0]["stages"][0]["id"]
 
 
-async def _team(client, headers, store_id, shop_role, unassigned):
+async def _team(client, headers, store_id, shop_role, unassigned, can_edit=False):
     email = f"{shop_role}.{uuid4().hex[:8]}@trivus.com.br"
     u = (await client.post(
         f"/stores/{store_id}/team",
         json={"email": email, "password": "segredo1", "name": shop_role,
-              "shop_role": shop_role, "can_see_unassigned_leads": unassigned},
+              "shop_role": shop_role, "can_see_unassigned_leads": unassigned,
+              "can_edit_others_leads": can_edit},
         headers=headers,
     )).json()
     login = await client.post("/auth/login", json={"email": email, "password": "segredo1"})
@@ -51,7 +53,8 @@ def _names(rows) -> set[str]:
 
 
 @pytest.mark.asyncio
-async def test_visibilidade_por_papel(client: AsyncClient) -> None:
+async def test_leitura_liberada_para_toda_a_equipe(client: AsyncClient) -> None:
+    """Todos os papéis veem o quadro inteiro — inclusive o SDR."""
     admin = await _admin(client)
     sid, stage = await _store_with_funnel(client, admin, "Loja visibilidade")
 
@@ -69,17 +72,32 @@ async def test_visibilidade_por_papel(client: AsyncClient) -> None:
         assert r.status_code == 200, r.text
         return _names(r.json())
 
-    # admin e gerente veem tudo
-    assert await board(admin) == {"L_SDR", "L_GER", "L_FIN", "L_NONE"}
-    assert await board(ger) == {"L_SDR", "L_GER", "L_FIN", "L_NONE"}
-    # sdr só o próprio
-    assert await board(sdr) == {"L_SDR"}
-    # administrativo: próprios + não atribuídos
-    assert await board(fin) == {"L_FIN", "L_NONE"}
+    todos = {"L_SDR", "L_GER", "L_FIN", "L_NONE"}
+    assert await board(admin) == todos
+    assert await board(ger) == todos
+    assert await board(sdr) == todos, "SDR agora vê o quadro inteiro"
+    assert await board(fin) == todos
 
 
 @pytest.mark.asyncio
-async def test_filtro_por_responsavel(client: AsyncClient) -> None:
+async def test_board_traz_nome_do_responsavel(client: AsyncClient) -> None:
+    """O payload do board inclui assigned_to_name (para o filtro 'Responsável')."""
+    admin = await _admin(client)
+    sid, stage = await _store_with_funnel(client, admin, "Loja resp nome")
+    sdr_id, _ = await _team(client, admin, sid, "sdr", False)
+
+    await _lead(client, admin, sid, stage, "L_COM_RESP", sdr_id)
+    await _lead(client, admin, sid, stage, "L_SEM_RESP", None)
+
+    rows = (await client.get(f"/crm/leads?store_id={sid}", headers=admin)).json()
+    by_name = {r["nome"]: r for r in rows}
+    assert by_name["L_COM_RESP"]["assigned_to_name"] == "sdr"
+    assert by_name["L_SEM_RESP"]["assigned_to_name"] is None
+
+
+@pytest.mark.asyncio
+async def test_filtro_por_responsavel_vale_para_todos(client: AsyncClient) -> None:
+    """O filtro 'Responsável' agora funciona para qualquer papel."""
     admin = await _admin(client)
     sid, stage = await _store_with_funnel(client, admin, "Loja filtro resp")
 
@@ -95,9 +113,22 @@ async def test_filtro_por_responsavel(client: AsyncClient) -> None:
         assert r.status_code == 200, r.text
         return _names(r.json())
 
-    # filtro do gestor por responsável específico e por não atribuídos
     assert await board(admin, f"&assigned_to={sdr_id}") == {"L_SDR"}
     assert await board(admin, "&assigned_to=__unassigned__") == {"L_NONE"}
     assert await board(ger, f"&assigned_to={ger_id}") == {"L_GER"}
-    # sdr restrito não amplia acesso: filtrar por outro responsável não vaza nada
-    assert await board(sdr, f"&assigned_to={ger_id}") == set()
+    # o SDR pode filtrar pelos leads do colega (só LEITURA — editar é outro guard)
+    assert await board(sdr, f"&assigned_to={ger_id}") == {"L_GER"}
+
+
+@pytest.mark.asyncio
+async def test_loja_alheia_continua_bloqueada(client: AsyncClient) -> None:
+    """Liberar a leitura dentro da loja não afeta o isolamento entre lojas."""
+    admin = await _admin(client)
+    sid_a, stage_a = await _store_with_funnel(client, admin, "Loja iso A")
+    sid_b, _ = await _store_with_funnel(client, admin, "Loja iso B")
+
+    _, sdr_a = await _team(client, admin, sid_a, "sdr", False)
+    await _lead(client, admin, sid_a, stage_a, "L_A", None)
+
+    r = await client.get(f"/crm/leads?store_id={sid_b}", headers=sdr_a)
+    assert r.status_code == 403

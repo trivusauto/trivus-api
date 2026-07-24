@@ -1,9 +1,10 @@
 import uuid
 from datetime import date, datetime, timezone
 
-from sqlalchemy import and_, delete, func, or_, select
+from sqlalchemy import and_, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.auth.infrastructure.orm import UserModel
 from src.modules.crm.domain.lead_patch import parse_optional_money
 from src.modules.crm.infrastructure.orm import (
     ActivityModel,
@@ -166,27 +167,15 @@ class LeadRepository:
         self._session = session
 
     async def list_for_board(
-        self,
-        store_id: str,
-        *,
-        restrict_to_user: str | None = None,
-        include_unassigned: bool = False,
-        assigned_to: str | None = None,
+        self, store_id: str, *, assigned_to: str | None = None
     ) -> list[dict[str, object]]:
-        """Lista os leads do quadro com visibilidade + filtro opcional por responsável.
+        """Lista TODOS os leads da loja, com filtro opcional por responsável.
 
-        Visibilidade (espelha o legado): quando ``restrict_to_user`` é informado, o usuário
-        só vê os próprios leads — e, se ``include_unassigned``, também os não atribuídos.
-        Gerente/dono/admin recebem ``restrict_to_user=None`` (veem o funil inteiro da loja).
-        ``assigned_to`` é um filtro adicional (id do responsável ou ``"__unassigned__"``) que
-        apenas restringe dentro do que já é visível — nunca amplia o acesso.
+        A leitura do quadro é liberada para toda a equipe (decisão do cliente 23/07);
+        o que é restrito é a ESCRITA (ver ``crm/application/edit_guard.py``).
+        ``assigned_to`` é o filtro do seletor "Responsável" (id ou ``"__unassigned__"``).
         """
         stmt = select(LeadModel).where(LeadModel.store_id == store_id)
-        if restrict_to_user is not None:
-            if include_unassigned:
-                stmt = stmt.where(or_(LeadModel.assigned_to == restrict_to_user, LeadModel.assigned_to.is_(None)))
-            else:
-                stmt = stmt.where(LeadModel.assigned_to == restrict_to_user)
         if assigned_to == "__unassigned__":
             stmt = stmt.where(LeadModel.assigned_to.is_(None))
         elif assigned_to:
@@ -208,8 +197,16 @@ class LeadRepository:
             entered,
             and_(entered.c.lead_id == LeadModel.id, entered.c.stage_id == LeadModel.stage_id),
         )
+
+        # Nome do responsável via outer join com users — mesma query, sem N+1.
+        stmt = stmt.add_columns(UserModel.name).outerjoin(
+            UserModel, UserModel.id == LeadModel.assigned_to
+        )
         rows = (await self._session.execute(stmt)).all()
-        return [{**lead_to_dict(lead), "stage_entered_at": entered_at} for lead, entered_at in rows]
+        return [
+            {**lead_to_dict(lead), "stage_entered_at": entered_at, "assigned_to_name": assigned_name}
+            for lead, entered_at, assigned_name in rows
+        ]
 
     async def get(self, lead_id: str) -> dict[str, object] | None:
         if not _is_uuid(lead_id):
