@@ -17,7 +17,7 @@ from src.modules.metrics.interface.deps import (
 )
 from src.modules.stores.application.get_accessible_stores import GetAccessibleStoreIdsUseCase
 from src.modules.stores.infrastructure.repository import SqlAlchemyStoreRepository
-from src.shared.domain.errors import DomainError
+from src.shared.domain.errors import DomainError, ForbiddenError
 from src.shared.infrastructure.database import get_session
 from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
@@ -150,11 +150,21 @@ async def executive(
     store_ids: list[str] = Query(default=[]),
     user: CurrentUser = Depends(get_current_user),
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
+    users: SqlAlchemyUserRepository = Depends(get_user_repo),
     session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    """Painel Executivo multi-loja (spec PARTE C)."""
+    """Painel Executivo multi-loja (spec PARTE C).
+
+    SDR/vendedor NÃO acessa: o painel é de gestão. Eles veem a versão "meus
+    números" (projeções com escopo próprio, S4.9).
+    """
     if not 1 <= month <= 12:
         raise DomainError("Mês inválido (use 1-12).")
+
+    if user.role == "shop_user":
+        me = await users.get_by_id(user.user_id)
+        if not (me and me.shop_role == "gerente"):
+            raise ForbiddenError("Painel executivo disponível para gestores.")
 
     effective = await require_store_ids_access(store_ids=store_ids, user=user, session=session)
     names = {s.id: s.nome_fantasia for s in await stores.list_all()}

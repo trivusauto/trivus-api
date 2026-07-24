@@ -473,3 +473,28 @@ async def test_executive_charts_gauge_ritmo_resumo_tops(client: AsyncClient) -> 
     assert any("da meta atingida" in linha for linha in resumo)
     assert any("Projeção de fechamento" in linha for linha in resumo)
     assert any("Unidade destaque" in linha for linha in resumo)
+
+
+@pytest.mark.asyncio
+async def test_executive_negado_para_sdr_liberado_para_gerente(client: AsyncClient) -> None:
+    """Painel executivo é de gestão: SDR 403, gerente 200 (S4.15)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    store = (await client.post("/admin/stores", json={"nome_fantasia": "Exec Papel"}, headers=headers)).json()
+    sid = store["id"]
+    hoje = date.today()
+
+    async def login_como(role: str) -> dict[str, str]:
+        email = f"{role}_exec_{uuid.uuid4().hex[:8]}@example.com"
+        await client.post(f"/stores/{sid}/team", json={
+            "email": email, "password": "demo123", "name": role, "shop_role": role,
+        }, headers=headers)
+        res = await client.post("/auth/login", json={"email": email, "password": "demo123"})
+        return {"Authorization": f"Bearer {res.json()['access_token']}"}
+
+    url = f"/metrics/executive?store_ids={sid}&year={hoje.year}&month={hoje.month}"
+
+    sdr = await login_como("sdr")
+    assert (await client.get(url, headers=sdr)).status_code == 403
+
+    gerente = await login_como("gerente")
+    assert (await client.get(url, headers=gerente)).status_code == 200
