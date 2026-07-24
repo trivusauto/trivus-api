@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.modules.auth.infrastructure.orm import UserModel
 from src.modules.crm.infrastructure.orm import LeadModel
 from src.modules.crm.infrastructure.repositories import lead_to_dict
 
@@ -23,8 +24,14 @@ class AgendaReader:
         search: str | None,
         page: int,
         page_size: int,
+        vendedor_id: str | None = None,
     ) -> tuple[list[dict[str, object]], int]:
         stmt = select(LeadModel).where(LeadModel.store_id == store_id)
+
+        if vendedor_id:
+            stmt = stmt.where(
+                or_(LeadModel.vendedor_id == vendedor_id, LeadModel.agendado_por == vendedor_id)
+            )
 
         if apply_to == "agendamento":
             stmt = stmt.where(LeadModel.data_agendamento.isnot(None), LeadModel.hora_agendamento.isnot(None))
@@ -55,6 +62,14 @@ class AgendaReader:
             ))
 
         total = int((await self._session.execute(select(func.count()).select_from(stmt.subquery()))).scalar_one())
-        stmt = stmt.order_by(col).limit(page_size).offset((page - 1) * page_size)
-        rows = (await self._session.execute(stmt)).scalars().all()
-        return [lead_to_dict(r) for r in rows], total
+
+        # Nome do vendedor via outer join com users — uma query, sem N+1.
+        stmt = (
+            stmt.add_columns(UserModel.name)
+            .outerjoin(UserModel, UserModel.id == LeadModel.vendedor_id)
+            .order_by(col)
+            .limit(page_size)
+            .offset((page - 1) * page_size)
+        )
+        rows = (await self._session.execute(stmt)).all()
+        return [{**lead_to_dict(lead), "vendedor_nome": nome} for lead, nome in rows], total

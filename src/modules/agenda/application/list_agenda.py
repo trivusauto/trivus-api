@@ -40,5 +40,6 @@ class ListAgendaUseCase:
             search=str(query["search"]) if query.get("search") else None,
             page=page,
             page_size=page_size,
+            vendedor_id=str(query["vendedor_id"]) if query.get("vendedor_id") else None,
         )
         return {"items": items, "total": total, "page": page, "page_size": page_size}

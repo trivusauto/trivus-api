@@ -17,6 +17,7 @@ async def list_agenda(
     from_: str | None = Query(None, alias="from"),
     to: str | None = Query(None),
     search: str | None = Query(None),
+    vendedor_id: str | None = Query(None),
     page: int = Query(1),
     page_size: int = Query(25),
     user: CurrentUser = Depends(get_current_user),
@@ -24,5 +25,6 @@ async def list_agenda(
 ) -> dict[str, object]:
     return await uc.execute(user, {
         "store_id": store_id, "apply_to": apply_to, "preset": preset,
-        "from": from_, "to": to, "search": search, "page": page, "page_size": page_size,
+        "from": from_, "to": to, "search": search, "vendedor_id": vendedor_id,
+        "page": page, "page_size": page_size,
     })
