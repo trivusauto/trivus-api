@@ -161,12 +161,52 @@
 
 ---
 
-## FASE 6 — Meta Ads: funil de mídia (SPEC B3, ~1 dia)
+## FASE 6 — Meta Ads: ativar a conexão + funil de mídia (SPEC B3, ~1 dia de código)
 
-- Migration: `campaign_daily_spend.impressions INT NULL`, `clicks INT NULL`; sync (mock e real) do módulo `integrations/meta` grava os 2 campos junto do spend.
-- API: expor impressões/cliques agregados no período (estender endpoint de marketing).
-- Web Marketing: card "Funil de Marketing" (Impressões → Cliques → Leads → Leads Qualificados, via `fixed-funnel` sem accent) + lista de taxas ao lado; sem Meta conectada → estado vazio "Conecte a Meta Ads para ver impressões e cliques". ("Sessões"/GA: fora de escopo.)
-- Teste: sync mock grava; endpoint agrega; loja sem Meta → payload vazio limpo.
+### ⚠️ O QUE JÁ EXISTE (NÃO REIMPLEMENTAR — conferido no código em 23/07)
+
+O módulo `src/modules/integrations/meta/` está **completo e hexagonal**:
+
+| Peça | Arquivo | Estado |
+|---|---|---|
+| Porta (interface) | `domain/client.py` — `MetaAdsClient`, `DailyInsight` | ✅ pronto |
+| **Cliente REAL da Graph API** | `infrastructure/http_client.py` — `GET /v21.0/{ad_account}/insights` com `level=campaign`, `time_increment=1`, `fields=campaign_id,spend,impressions,clicks`, token no header | ✅ pronto |
+| Cliente mock determinístico | `infrastructure/mock_client.py` | ✅ pronto |
+| Chaveamento real×mock | `interface/deps.py` — HTTP se `META_ENABLED=true`, senão mock | ✅ pronto |
+| Endpoint de sync | `interface/router.py` — `POST /integrations/meta/sync` (protegido por `require_meta_token`) | ✅ pronto |
+| Use case | `application/sync.py` — agrupa por loja, chama o client, faz upsert | ✅ pronto |
+| Migration `c7f4b2e918d5` | `marketing_campaigns.meta_campaign_id`, `stores.meta_ad_account_id`, tabela `campaign_daily_spend (spend, **impressions**, **clicks**)` + UNIQUE(campaign_id, reference_date) | ✅ aplicada |
+| Env vars | `.env.example`: `META_ENABLED=false`, `META_ACCESS_TOKEN=` | ✅ documentadas |
+
+**As colunas `impressions` e `clicks` JÁ EXISTEM e o client real JÁ as busca** — NÃO criar migration para isso.
+
+### O QUE FALTA (o trabalho real desta fase)
+
+**6.1 UI para preencher os IDs da Meta (não existe no front — bloqueia tudo)**
+- Tela **Lojas** (`src/app/(app)/lojas/page.tsx`): campo "ID da conta de anúncios Meta" (`meta_ad_account_id`, formato `act_123456789`). O backend já aceita (o campo está em `_UPDATABLE` de `stores/infrastructure/repository.py`).
+- Tela **Campanhas** (`src/app/(app)/campanhas/page.tsx`): campo "ID da campanha na Meta" (`meta_campaign_id`) no create/edit; conferir se o schema da API já expõe e adicionar se faltar.
+- Sem esses dois IDs preenchidos, o sync não tem o que buscar.
+
+**6.2 Agendamento do sync (hoje é manual)**
+- `POST /integrations/meta/sync` só roda se alguém chamar. Configurar **n8n (ou cron do Coolify)** para chamar 1×/dia de madrugada, com o header do token (`require_meta_token`).
+- Opcional: botão "Sincronizar agora" na tela de Marketing/Lojas para o admin forçar.
+
+**6.3 Consumir impressions/clicks no funil de mídia (SPEC B3)**
+- API: expor impressões/cliques agregados do período no endpoint de marketing (a fonte `campaign_daily_spend` já tem os dados).
+- Web Marketing: card "Funil de Marketing" (Impressões → Cliques → Leads → Leads Qualificados via `fixed-funnel` sem accent) + lista de taxas ao lado; loja sem Meta → estado vazio "Conecte a Meta Ads para ver impressões e cliques". ("Sessões"/GA fora de escopo.)
+- Teste: sync mock grava impressions/clicks; endpoint agrega; loja sem Meta → payload vazio limpo.
+
+**6.4 Ativação em produção (não é código — é do Giovani/cliente, roda em paralelo)**
+Ver `docs/INTEGRACAO_META.md`. Caminho crítico de PRAZO (semanas):
+1. Business Manager da Trivus verificado (CNPJ);
+2. App tipo *Business* + produto *Marketing API*;
+3. Contas de anúncio dos clientes compartilhadas com o BM da Trivus;
+4. **System User** com permissão `ads_read` → gerar token (não expira);
+5. **App Review / Advanced Access** para ler contas de vários clientes em escala;
+6. Setar `META_ENABLED=true` + `META_ACCESS_TOKEN=<token>` nos secrets do Coolify e reiniciar.
+
+> Enquanto 6.4 não sai, **tudo funciona com o mock** (`META_ENABLED=false`): dá para
+> desenvolver, testar e demonstrar o funil de mídia ponta a ponta sem token da Meta.
 
 ---
 

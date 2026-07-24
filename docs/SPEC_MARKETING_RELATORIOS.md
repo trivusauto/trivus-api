@@ -86,7 +86,7 @@ A tela passa a ter 4 blocos, nesta ordem:
 **Descrição do design:** card "Funil de Marketing": funil invertido azul com **Impressões → Cliques → Sessões → Leads → Leads Qualificados** e, à direita, a lista "Taxa de Conversão por Etapa" (`Impressões → Cliques  X%  533.362/1.593`, …).
 
 **Viabilidade honesta:**
-- **Impressões/Cliques:** só via **Meta Ads** (Graph API insights: `impressions`, `clicks`). O adapter mock `src/modules/integrations/meta/` já existe — adicionar os 2 campos ao sync junto do `spend` (migration: `impressions INT NULL`, `clicks INT NULL` em `campaign_daily_spend`).
+- **Impressões/Cliques:** só via **Meta Ads**. ✅ **O backend JÁ ESTÁ PRONTO** (conferido 23/07): o cliente real `integrations/meta/infrastructure/http_client.py` já pede `campaign_id,spend,impressions,clicks` à Graph API v21.0, e as colunas `impressions`/`clicks` **já existem** em `campaign_daily_spend` (migration `c7f4b2e918d5`). **NÃO criar migration.** Falta só: UI para preencher os IDs (`stores.meta_ad_account_id` e `marketing_campaigns.meta_campaign_id`), agendar o sync diário, e consumir os números aqui. Ver FASE 6 do `PLANO_13_AJUSTES_POS_REUNIAO.md`.
 - **Sessões:** viria do Google Analytics — **fora de escopo agora** (omitir a faixa).
 - Sem Meta conectada: estado vazio amigável ("Conecte a Meta Ads para ver impressões e cliques"). Com Meta: Impressões → Cliques → Leads → Leads Qualificados + taxas ao lado.
 - Reutilizar o `fixed-funnel` (sem accent na última faixa).
