@@ -14,6 +14,11 @@ class CreateTeamUserRequest(BaseModel):
     shop_role: str | None = None
     menu_permissions: list[str] = []
     can_see_unassigned_leads: bool = False
+    can_edit_others_leads: bool = False
+
+
+class UpdateTeamUserRequest(BaseModel):
+    can_edit_others_leads: bool
 
 
 class AssignStoresRequest(BaseModel):
@@ -27,3 +32,5 @@ class PortalUserResponse(BaseModel):
     name: str | None
     role: str
     active: bool
+    shop_role: str | None = None
+    can_edit_others_leads: bool = False

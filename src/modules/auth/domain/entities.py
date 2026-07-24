@@ -13,6 +13,7 @@ class User:
     shop_role: str | None = None
     menu_permissions: list[str] = field(default_factory=list)
     can_see_unassigned_leads: bool = False
+    can_edit_others_leads: bool = False
 
     def is_admin(self) -> bool:
         return self.role == "admin"

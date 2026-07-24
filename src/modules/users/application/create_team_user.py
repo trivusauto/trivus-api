@@ -15,4 +15,5 @@ class CreateTeamUserUseCase:
             "parent_store_id": data.store_id, "shop_role": data.shop_role,
             "menu_permissions": data.menu_permissions,
             "can_see_unassigned_leads": data.can_see_unassigned_leads,
+            "can_edit_others_leads": data.can_edit_others_leads,
         })

@@ -17,3 +17,4 @@ class UserModel(Base):
     shop_role: Mapped[str | None] = mapped_column(String, nullable=True)
     menu_permissions: Mapped[list[object] | None] = mapped_column(JSONB, nullable=True)
     can_see_unassigned_leads: Mapped[bool] = mapped_column(Boolean, default=False)
+    can_edit_others_leads: Mapped[bool] = mapped_column(Boolean, default=False)

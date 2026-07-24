@@ -63,3 +63,69 @@ async def test_sdr_nao_le_equipe(client: AsyncClient) -> None:
 
     res = await client.get(f"/stores/{loja['id']}/team", headers=sdr_headers)
     assert res.status_code == 403
+
+
+async def test_flag_can_edit_others_leads_no_crud_de_equipe(client: AsyncClient) -> None:
+    """Create aceita a flag, GET devolve e PATCH concede/retira (S3.2)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    loja = (await client.post("/admin/stores", json={"nome_fantasia": "Loja Flag"}, headers=headers)).json()
+
+    email = f"sdr_flag_{uuid.uuid4().hex[:8]}@example.com"
+    created = await client.post(
+        f"/stores/{loja['id']}/team",
+        json={"email": email, "password": "demo123", "name": "SDR Flag", "shop_role": "sdr"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+    assert created.json()["can_edit_others_leads"] is False, "default é restrito"
+    user_id = created.json()["id"]
+
+    # com a flag ligada já na criação
+    com_flag = await client.post(
+        f"/stores/{loja['id']}/team",
+        json={
+            "email": f"sdr_flag2_{uuid.uuid4().hex[:8]}@example.com",
+            "password": "demo123", "name": "SDR Com Flag", "shop_role": "sdr",
+            "can_edit_others_leads": True,
+        },
+        headers=headers,
+    )
+    assert com_flag.status_code == 201, com_flag.text
+    assert com_flag.json()["can_edit_others_leads"] is True
+
+    # GET do team devolve a flag
+    team = (await client.get(f"/stores/{loja['id']}/team", headers=headers)).json()
+    assert {u["email"]: u["can_edit_others_leads"] for u in team}[email] is False
+
+    # PATCH concede
+    granted = await client.patch(
+        f"/stores/{loja['id']}/team/{user_id}", json={"can_edit_others_leads": True}, headers=headers
+    )
+    assert granted.status_code == 200, granted.text
+    assert granted.json()["can_edit_others_leads"] is True
+
+    team = (await client.get(f"/stores/{loja['id']}/team", headers=headers)).json()
+    assert {u["email"]: u["can_edit_others_leads"] for u in team}[email] is True
+
+
+async def test_patch_flag_recusa_colaborador_de_outra_loja(client: AsyncClient) -> None:
+    """Não dá para conceder a flag a alguém de outra loja (S3.2)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    loja_a = (await client.post("/admin/stores", json={"nome_fantasia": "Flag A"}, headers=headers)).json()
+    loja_b = (await client.post("/admin/stores", json={"nome_fantasia": "Flag B"}, headers=headers)).json()
+
+    membro_b = (await client.post(
+        f"/stores/{loja_b['id']}/team",
+        json={
+            "email": f"sdr_b_{uuid.uuid4().hex[:8]}@example.com",
+            "password": "demo123", "name": "SDR B", "shop_role": "sdr",
+        },
+        headers=headers,
+    )).json()
+
+    res = await client.patch(
+        f"/stores/{loja_a['id']}/team/{membro_b['id']}",
+        json={"can_edit_others_leads": True},
+        headers=headers,
+    )
+    assert res.status_code == 404

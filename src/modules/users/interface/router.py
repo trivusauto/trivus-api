@@ -16,8 +16,9 @@ from src.modules.users.interface.schemas import (
     CreatePortalUserRequest,
     CreateTeamUserRequest,
     PortalUserResponse,
+    UpdateTeamUserRequest,
 )
-from src.shared.domain.errors import ForbiddenError
+from src.shared.domain.errors import ForbiddenError, NotFoundError
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
 from src.shared.interface.rbac import require_roles
 
@@ -74,7 +75,34 @@ async def list_team(
     _: CurrentUser = Depends(require_team_read_access),
     repo: SqlAlchemyUserRepository = Depends(get_user_repo),
 ) -> list[PortalUserResponse]:
-    return [PortalUserResponse(id=u.id, email=u.email, name=u.name, role=u.role, active=u.active) for u in await repo.list_team(store_id)]
+    return [
+        PortalUserResponse(
+            id=u.id, email=u.email, name=u.name, role=u.role, active=u.active,
+            shop_role=u.shop_role, can_edit_others_leads=u.can_edit_others_leads,
+        )
+        for u in await repo.list_team(store_id)
+    ]
+
+
+@router.patch("/stores/{store_id}/team/{user_id}")
+async def update_team_member(
+    store_id: str,
+    user_id: str,
+    body: UpdateTeamUserRequest,
+    _: CurrentUser = Depends(require_team_read_access),
+    repo: SqlAlchemyUserRepository = Depends(get_user_repo),
+) -> PortalUserResponse:
+    """Concede/retira a flag de edição. O alvo precisa ser da MESMA loja do path."""
+    target = await repo.get_by_id(user_id)
+    if not target or target.parent_store_id != store_id:
+        raise NotFoundError("Colaborador não encontrado nesta loja.")
+    u = await repo.set_can_edit_others_leads(user_id, body.can_edit_others_leads)
+    if not u:
+        raise NotFoundError("Colaborador não encontrado nesta loja.")
+    return PortalUserResponse(
+        id=u.id, email=u.email, name=u.name, role=u.role, active=u.active,
+        shop_role=u.shop_role, can_edit_others_leads=u.can_edit_others_leads,
+    )
 
 
 @router.post("/stores/{store_id}/team", status_code=201)
@@ -88,6 +116,10 @@ async def create_team(
         email=str(body.email), password=body.password, name=body.name, store_id=store_id,
         shop_role=body.shop_role, menu_permissions=body.menu_permissions,
         can_see_unassigned_leads=body.can_see_unassigned_leads,
+        can_edit_others_leads=body.can_edit_others_leads,
     )
     u = await uc.execute(data)
-    return PortalUserResponse(id=u.id, email=u.email, name=u.name, role=u.role, active=u.active)
+    return PortalUserResponse(
+        id=u.id, email=u.email, name=u.name, role=u.role, active=u.active,
+        shop_role=u.shop_role, can_edit_others_leads=u.can_edit_others_leads,
+    )

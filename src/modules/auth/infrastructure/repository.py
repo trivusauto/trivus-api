@@ -14,6 +14,7 @@ def _to_domain(row: UserModel) -> User:
         active=row.active, password_hash=row.password_hash,
         shop_role=row.shop_role, menu_permissions=[str(p) for p in (row.menu_permissions or [])],
         can_see_unassigned_leads=row.can_see_unassigned_leads,
+        can_edit_others_leads=row.can_edit_others_leads,
     )
 
 
@@ -34,6 +35,15 @@ class SqlAlchemyUserRepository(UserRepository):
         if row:
             row.password_hash = password_hash
             await self._session.flush()
+
+    async def set_can_edit_others_leads(self, user_id: str, value: bool) -> User | None:
+        """Concede/retira a autorização de editar leads de terceiros."""
+        row = await self._session.get(UserModel, user_id)
+        if not row:
+            return None
+        row.can_edit_others_leads = value
+        await self._session.flush()
+        return _to_domain(row)
 
     async def create(self, data: dict[str, object]) -> User:
         row = UserModel(id=str(uuid.uuid4()), **data)
