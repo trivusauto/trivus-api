@@ -44,6 +44,7 @@ def _schedule_marked_ymd(lead: dict[str, object]) -> str | None:
 
 class _Totals(TypedDict):
     total_leads: int
+    classified_leads: int
     qualified_leads: int
     scheduled: int
     attended: int
@@ -62,12 +63,18 @@ class _OriginStats(TypedDict):
 
 
 def aggregate_totals_for_range(
-    leads: list[dict[str, object]], start: str, end: str, passed_qualificados: object = None
+    leads: list[dict[str, object]], start: str, end: str, passed_qualificados: object = None,
+    passed_classificados: object = None,
 ) -> dict[str, object]:
-    t = _Totals(total_leads=0, qualified_leads=0, scheduled=0, attended=0, conversions=0, total_revenue=0.0)
+    t = _Totals(
+        total_leads=0, classified_leads=0, qualified_leads=0, scheduled=0,
+        attended=0, conversions=0, total_revenue=0.0,
+    )
     for lead in leads:
         if ymd_in_range(to_local_ymd(lead.get("created_at")), start, end):
             t["total_leads"] += 1
+            if callable(passed_classificados) and passed_classificados(lead):
+                t["classified_leads"] += 1
             if callable(passed_qualificados) and passed_qualificados(lead):
                 t["qualified_leads"] += 1
         if _has_appointment(lead) and ymd_in_range(_schedule_marked_ymd(lead), start, end):

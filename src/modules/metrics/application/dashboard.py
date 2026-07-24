@@ -13,7 +13,8 @@ class DashboardUseCase:
     async def execute(self, store_ids: list[str], start: str, end: str) -> dict[str, object]:
         leads = await self._reader.leads_for_stores(store_ids)
         ctx = await self._stage_reach.build(store_ids, "QUALIFICADOS")
-        totals = aggregate_totals_for_range(leads, start, end, ctx.passed)
+        classified_ctx = await self._stage_reach.build(store_ids, "CLASSIFICADOS")
+        totals = aggregate_totals_for_range(leads, start, end, ctx.passed, classified_ctx.passed)
         keys = last_month_keys(date.today(), 12)
         series = build_monthly_series(leads, keys, ctx.passed)
         return {"totals": totals, "monthly": [{"month": k, **series[k]} for k in keys]}
