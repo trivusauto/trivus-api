@@ -1,4 +1,9 @@
-# Plano 13 — Ajustes pós-reunião (execução passo a passo)
+# Plano 13 — Ajustes pós-reunião (visão macro por fases)
+
+> **Para EXECUTAR, use `PLANO_13_BABY_STEPS.md`** — decomposição deste plano em
+> micro-passos (S0.1…S7.2) para execução por IA, com verificação e commit por passo.
+> O prompt da IA executora está em `PROMPT_EXECUTOR_PLANO13.md`. Este arquivo fica
+> como referência da visão macro/estimativas.
 
 > Plano de desenvolvimento derivado de `AJUSTES_POS_REUNIAO_CLIENTE.md` (decisões ✅) e
 > `SPEC_MARKETING_RELATORIOS.md` (designs). Segue a estrutura real do projeto:
