@@ -25,12 +25,13 @@ from src.shared.interface.rbac import require_roles
 router = APIRouter(tags=["users"])
 
 
-async def require_team_read_access(
+async def require_team_access(
     store_id: str,
     user: CurrentUser = Depends(get_current_user),
     repo: SqlAlchemyUserRepository = Depends(get_user_repo),
 ) -> CurrentUser:
-    """Admin/dono sempre; gerente apenas na própria loja. Qualquer outro caso → 403."""
+    """Acesso à equipe da loja (ler e escrever): admin/dono sempre; gerente
+    apenas na própria loja. Qualquer outro caso → 403."""
     if user.role in ("admin", "client"):
         return user
     if user.role == "shop_user":
@@ -72,7 +73,7 @@ async def assign_stores(
 @router.get("/stores/{store_id}/team")
 async def list_team(
     store_id: str,
-    _: CurrentUser = Depends(require_team_read_access),
+    _: CurrentUser = Depends(require_team_access),
     repo: SqlAlchemyUserRepository = Depends(get_user_repo),
 ) -> list[PortalUserResponse]:
     return [
@@ -89,7 +90,7 @@ async def update_team_member(
     store_id: str,
     user_id: str,
     body: UpdateTeamUserRequest,
-    _: CurrentUser = Depends(require_team_read_access),
+    _: CurrentUser = Depends(require_team_access),
     repo: SqlAlchemyUserRepository = Depends(get_user_repo),
 ) -> PortalUserResponse:
     """Concede/retira a flag de edição. O alvo precisa ser da MESMA loja do path."""
@@ -109,7 +110,7 @@ async def update_team_member(
 async def create_team(
     store_id: str,
     body: CreateTeamUserRequest,
-    _: CurrentUser = Depends(require_roles("admin", "client")),
+    _: CurrentUser = Depends(require_team_access),
     uc: CreateTeamUserUseCase = Depends(get_create_team_uc),
 ) -> PortalUserResponse:
     data = CreateTeamUserInput(

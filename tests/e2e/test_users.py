@@ -129,3 +129,66 @@ async def test_patch_flag_recusa_colaborador_de_outra_loja(client: AsyncClient) 
         headers=headers,
     )
     assert res.status_code == 404
+
+
+async def test_gerente_cria_equipe_da_propria_loja(client: AsyncClient) -> None:
+    """POST /stores/{id}/team liberado para gerente da própria loja; 403 em outra (S3.7)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    minha = (await client.post("/admin/stores", json={"nome_fantasia": "Loja Ger Cria"}, headers=headers)).json()
+    outra = (await client.post("/admin/stores", json={"nome_fantasia": "Loja Ger Outra"}, headers=headers)).json()
+
+    email_ger = f"gerente_cria_{uuid.uuid4().hex[:8]}@example.com"
+    created = await client.post(
+        f"/stores/{minha['id']}/team",
+        json={"email": email_ger, "password": "demo123", "name": "Gerente", "shop_role": "gerente"},
+        headers=headers,
+    )
+    assert created.status_code == 201, created.text
+
+    login = await client.post("/auth/login", json={"email": email_ger, "password": "demo123"})
+    ger = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    novo = await client.post(
+        f"/stores/{minha['id']}/team",
+        json={
+            "email": f"sdr_do_gerente_{uuid.uuid4().hex[:8]}@example.com",
+            "password": "demo123", "name": "SDR do Gerente", "shop_role": "sdr",
+        },
+        headers=ger,
+    )
+    assert novo.status_code == 201, novo.text
+
+    alheia = await client.post(
+        f"/stores/{outra['id']}/team",
+        json={
+            "email": f"sdr_alheio_{uuid.uuid4().hex[:8]}@example.com",
+            "password": "demo123", "name": "SDR Alheio", "shop_role": "sdr",
+        },
+        headers=ger,
+    )
+    assert alheia.status_code == 403
+
+
+async def test_sdr_nao_cria_equipe(client: AsyncClient) -> None:
+    """shop_user comum continua sem poder criar colaborador (S3.7)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    loja = (await client.post("/admin/stores", json={"nome_fantasia": "Loja SDR Cria"}, headers=headers)).json()
+
+    email_sdr = f"sdr_nocreate_{uuid.uuid4().hex[:8]}@example.com"
+    await client.post(
+        f"/stores/{loja['id']}/team",
+        json={"email": email_sdr, "password": "demo123", "name": "SDR", "shop_role": "sdr"},
+        headers=headers,
+    )
+    login = await client.post("/auth/login", json={"email": email_sdr, "password": "demo123"})
+    sdr = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    res = await client.post(
+        f"/stores/{loja['id']}/team",
+        json={
+            "email": f"x_{uuid.uuid4().hex[:8]}@example.com",
+            "password": "demo123", "name": "X", "shop_role": "sdr",
+        },
+        headers=sdr,
+    )
+    assert res.status_code == 403
