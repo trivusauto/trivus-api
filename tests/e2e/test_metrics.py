@@ -318,3 +318,99 @@ async def test_projecoes_por_origem_e_classificados(client: AsyncClient) -> None
     assert leads(body["by_origin"]["receptivo"]) == 2
     assert leads(body["by_origin"]["prospeccao"]) == 1
     assert leads(body["total"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_executive_kpis_e_por_loja(client: AsyncClient) -> None:
+    """Painel executivo: dias, KPIs consolidados e recorte por unidade (S4.11)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    sid_a, stage_a = await _store_com_funil(client, headers, f"Exec A {uuid.uuid4().hex[:6]}")
+    sid_b, _ = await _store_com_funil(client, headers, f"Exec B {uuid.uuid4().hex[:6]}")
+
+    hoje = date.today()
+    dia = f"{hoje.year}-{hoje.month:02d}-05"
+
+    # meta de faturamento na loja A
+    await client.post("/admin/goals", json={
+        "store_id": sid_a, "year": hoje.year, "month": hoje.month,
+        "origin": "receptivo", "profitability_goal": 100000,
+    }, headers=headers)
+
+    # uma venda fechada na loja A: receita 60k, rentabilidade 12k → margem 20%
+    lead = (await client.post("/crm/leads", json={
+        "store_id": sid_a, "stage_id": stage_a, "funil": "receptivo",
+        "nome": "Venda Exec", "telefone": "(11) 90000-0000",
+    }, headers=headers)).json()
+    await client.patch(f"/crm/leads/{lead['id']}/fechamento", json={
+        "receita": "60000", "despesa": "48000", "rentabilidade": "12000",
+    }, headers=headers)
+    await client.patch(f"/crm/leads/{lead['id']}", json={"data_fechou_negocio": dia}, headers=headers)
+
+    res = await client.get(
+        f"/metrics/executive?store_ids={sid_a}&store_ids={sid_b}&year={hoje.year}&month={hoje.month}",
+        headers=headers,
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+
+    dias = body["dias"]
+    assert dias["uteis"] > 0 and dias["trabalhados"] <= dias["uteis"]
+    assert dias["uteis"] == dias["trabalhados"] + dias["restantes"]
+
+    kpis = body["kpis"]
+    assert kpis["faturamento"] == 60000.0
+    assert kpis["fechamentos"] == 1
+    assert kpis["ticket_medio"] == 60000.0
+    assert kpis["margem_media"] == pytest.approx(0.2)
+    assert kpis["pct_meta"] == pytest.approx(0.6)
+
+    por_loja = {s["store_id"]: s for s in body["by_store"]}
+    assert por_loja[sid_a]["faturamento"] == 60000.0
+    assert por_loja[sid_a]["status"] == "red"          # 60% da meta
+    assert por_loja[sid_b]["faturamento"] == 0.0
+    assert por_loja[sid_b]["ticket_medio"] is None, "loja sem venda não divide por zero"
+
+
+@pytest.mark.asyncio
+async def test_executive_loja_vazia_e_mes_sem_meta_nao_quebram(client: AsyncClient) -> None:
+    """Loja sem venda e mês sem meta devolvem None — nunca 500 (S4.11)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    store = (await client.post("/admin/stores", json={"nome_fantasia": "Exec Vazia"}, headers=headers)).json()
+
+    res = await client.get(
+        f"/metrics/executive?store_ids={store['id']}&year=2026&month=3", headers=headers
+    )
+    assert res.status_code == 200, res.text
+    kpis = res.json()["kpis"]
+    assert kpis["faturamento"] == 0.0
+    assert kpis["meta"] is None
+    assert kpis["pct_meta"] is None
+    assert kpis["ticket_medio"] is None
+    assert kpis["conversao"] is None
+
+
+@pytest.mark.asyncio
+async def test_executive_mes_invalido_e_loja_alheia(client: AsyncClient) -> None:
+    """Input inválido → 4xx; loja fora do escopo → 403 (S4.11)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    store = (await client.post("/admin/stores", json={"nome_fantasia": "Exec Guard"}, headers=headers)).json()
+
+    ruim = await client.get(
+        f"/metrics/executive?store_ids={store['id']}&year=2026&month=13", headers=headers
+    )
+    assert 400 <= ruim.status_code < 500
+
+    alheia = (await client.post("/admin/stores", json={"nome_fantasia": "Exec Alheia"}, headers=headers)).json()
+    email = f"dono_exec_{uuid.uuid4().hex[:8]}@example.com"
+    dono = (await client.post("/admin/users", json={
+        "email": email, "password": "demo123", "name": "Dono Exec",
+    }, headers=headers)).json()
+    await client.put(f"/admin/users/{dono['id']}/stores",
+                     json={"store_ids": [store["id"]], "owner_store_ids": [store["id"]]}, headers=headers)
+    login = await client.post("/auth/login", json={"email": email, "password": "demo123"})
+    dono_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    negado = await client.get(
+        f"/metrics/executive?store_ids={alheia['id']}&year=2026&month=7", headers=dono_headers
+    )
+    assert negado.status_code == 403

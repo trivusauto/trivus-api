@@ -1,9 +1,12 @@
 from fastapi import APIRouter, Depends, Query
 from src.modules.auth.infrastructure.repository import SqlAlchemyUserRepository
+from src.modules.goals.infrastructure.repository import GoalRepository
 from src.modules.metrics.application.dashboard import DashboardUseCase
+from src.modules.metrics.application.executive import ExecutiveUseCase
 from src.modules.metrics.application.projections import ProjectionsUseCase
 from src.modules.metrics.application.reports import ReportUseCase
 from src.modules.metrics.domain.team import build_team_performance
+from src.modules.metrics.infrastructure.executive_reader import ExecutiveReader
 from src.modules.metrics.infrastructure.marketing_series_reader import (
     MarketingSeriesReader, previous_window, totals_of,
 )
@@ -138,6 +141,25 @@ async def projections(
             scoped_user = user.user_id
 
     return await uc.execute(effective_stores, year, month, scoped_user)
+
+
+@router.get("/executive")
+async def executive(
+    year: int = Query(...),
+    month: int = Query(...),
+    store_ids: list[str] = Query(default=[]),
+    user: CurrentUser = Depends(get_current_user),
+    stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Painel Executivo multi-loja (spec PARTE C)."""
+    if not 1 <= month <= 12:
+        raise DomainError("Mês inválido (use 1-12).")
+
+    effective = await require_store_ids_access(store_ids=store_ids, user=user, session=session)
+    names = {s.id: s.nome_fantasia for s in await stores.list_all()}
+    uc = ExecutiveUseCase(ExecutiveReader(session), GoalRepository(session))
+    return await uc.execute(effective, year, month, names)
 
 
 @router.get("/indicators-report", dependencies=[Depends(require_feature("indicators"))])
