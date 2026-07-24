@@ -414,3 +414,62 @@ async def test_executive_mes_invalido_e_loja_alheia(client: AsyncClient) -> None
         f"/metrics/executive?store_ids={alheia['id']}&year=2026&month=7", headers=dono_headers
     )
     assert negado.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_executive_charts_gauge_ritmo_resumo_tops(client: AsyncClient) -> None:
+    """Blocos analíticos do painel executivo (S4.12)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    sid_a, stage_a = await _store_com_funil(client, headers, f"Ana A {uuid.uuid4().hex[:6]}")
+    sid_b, stage_b = await _store_com_funil(client, headers, f"Ana B {uuid.uuid4().hex[:6]}")
+
+    hoje = date.today()
+    dia = f"{hoje.year}-{hoje.month:02d}-05"
+
+    for sid in (sid_a, sid_b):
+        await client.post("/admin/goals", json={
+            "store_id": sid, "year": hoje.year, "month": hoje.month,
+            "origin": "receptivo", "profitability_goal": 100000,
+        }, headers=headers)
+
+    async def vender(sid: str, stage: str, receita: str, rent: str) -> None:
+        lead = (await client.post("/crm/leads", json={
+            "store_id": sid, "stage_id": stage, "funil": "receptivo",
+            "nome": "V", "telefone": "(11) 90000-0000",
+        }, headers=headers)).json()
+        await client.patch(f"/crm/leads/{lead['id']}/fechamento", json={
+            "receita": receita, "despesa": "1", "rentabilidade": rent,
+        }, headers=headers)
+        await client.patch(f"/crm/leads/{lead['id']}", json={"data_fechou_negocio": dia}, headers=headers)
+
+    await vender(sid_a, stage_a, "80000", "20000")   # margem 25%
+    await vender(sid_b, stage_b, "40000", "4000")    # margem 10%
+
+    body = (await client.get(
+        f"/metrics/executive?store_ids={sid_a}&store_ids={sid_b}&year={hoje.year}&month={hoje.month}",
+        headers=headers,
+    )).json()
+
+    charts = body["charts"]
+    assert set(charts) == {
+        "faturamento_meta", "ranking", "ticket_medio", "comprados_vendidos",
+        "lucro_projetado", "margem",
+    }
+    # ranking vem ordenado do maior faturamento para o menor
+    assert [r["faturamento"] for r in charts["ranking"]] == [80000.0, 40000.0]
+    assert len(charts["comprados_vendidos"]) == 2
+
+    assert body["gauge"]["pct_meta"] == pytest.approx(120000 / 200000)
+
+    ritmo = body["ritmo"]
+    assert ritmo["media_diaria_atual"] is not None
+    assert ritmo["forecast_pct"] <= 99, "forecast tem teto de 99%"
+
+    tops = body["tops"]
+    assert tops["destaques"][0]["faturamento"] == 80000.0
+    assert tops["atencao"][0]["margem"] == pytest.approx(0.1), "pior margem primeiro"
+
+    resumo = body["resumo"]
+    assert any("da meta atingida" in linha for linha in resumo)
+    assert any("Projeção de fechamento" in linha for linha in resumo)
+    assert any("Unidade destaque" in linha for linha in resumo)

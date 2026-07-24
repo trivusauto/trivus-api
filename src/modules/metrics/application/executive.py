@@ -89,11 +89,114 @@ class ExecutiveUseCase:
                 "status": goal_status(faturamento, meta),
             })
 
+        kpis = self._kpis(totals, uteis, trabalhados)
+        vehicles = await self._reader.vehicle_counts_by_store(store_ids, start, end)
         return {
             "dias": {"uteis": uteis, "trabalhados": trabalhados, "restantes": restantes},
-            "kpis": self._kpis(totals, uteis, trabalhados),
+            "kpis": kpis,
             "by_store": by_store,
+            "charts": self._charts(by_store, vehicles),
+            "gauge": {"pct_meta": kpis["pct_meta"]},
+            "ritmo": self._ritmo(kpis, trabalhados, restantes),
+            "tops": self._tops(by_store),
+            "resumo": self._resumo(kpis, by_store, restantes),
         }
+
+    def _charts(
+        self, by_store: list[dict[str, object]], vehicles: dict[str, dict[str, int]]
+    ) -> dict[str, object]:
+        """Séries prontas para os 6 gráficos da spec C4 — o front só plota."""
+        def row(s: dict[str, object]) -> str:
+            return str(s["nome"])
+
+        faturamento_meta = [
+            {"nome": row(s), "faturamento": s["faturamento"], "meta": s["meta"] or 0,
+             "projecao": s["projecao"]}
+            for s in by_store
+        ]
+        ranking = sorted(
+            [{"nome": row(s), "faturamento": s["faturamento"]} for s in by_store],
+            key=lambda r: float(r["faturamento"]), reverse=True,  # type: ignore[arg-type]
+        )
+        ticket_medio = sorted(
+            [{"nome": row(s), "ticket_medio": s["ticket_medio"] or 0} for s in by_store],
+            key=lambda r: float(r["ticket_medio"]), reverse=True,  # type: ignore[arg-type]
+        )
+        comprados_vendidos = [
+            {"nome": row(s),
+             "comprados": vehicles.get(str(s["store_id"]), {}).get("comprados", 0),
+             "vendidos": vehicles.get(str(s["store_id"]), {}).get("vendidos", 0)}
+            for s in by_store
+        ]
+        lucro_projetado = [
+            {"nome": row(s), "lucro_projetado": s["lucro_projetado"] or 0} for s in by_store
+        ]
+        margem = [
+            {"nome": row(s), "margem": (float(s["margem"]) * 100) if s["margem"] is not None else 0}  # type: ignore[arg-type]
+            for s in by_store
+        ]
+        return {
+            "faturamento_meta": faturamento_meta,
+            "ranking": ranking,
+            "ticket_medio": ticket_medio,
+            "comprados_vendidos": comprados_vendidos,
+            "lucro_projetado": lucro_projetado,
+            "margem": margem,
+        }
+
+    def _ritmo(self, kpis: dict[str, object], trabalhados: int, restantes: int) -> dict[str, object]:
+        faturamento = float(kpis["faturamento"])  # type: ignore[arg-type]
+        meta = float(kpis["meta"] or 0)  # type: ignore[arg-type]
+        projecao = float(kpis["projecao"])  # type: ignore[arg-type]
+        falta = max(meta - faturamento, 0.0)
+        forecast = _safe_div(projecao, meta)
+        return {
+            "media_diaria_atual": _safe_div(faturamento, trabalhados),
+            "media_diaria_necessaria": _safe_div(falta, restantes),
+            # Forecast é teto 99%: nunca prometer certeza de bater a meta.
+            "forecast_pct": min(99, round(forecast * 100)) if forecast is not None else None,
+        }
+
+    def _tops(self, by_store: list[dict[str, object]]) -> dict[str, object]:
+        destaques = sorted(by_store, key=lambda s: float(s["faturamento"]), reverse=True)[:3]  # type: ignore[arg-type]
+        com_margem = [s for s in by_store if s["margem"] is not None]
+        atencao = sorted(com_margem, key=lambda s: float(s["margem"]))[:3]  # type: ignore[arg-type]
+        return {
+            "destaques": [
+                {"nome": s["nome"], "faturamento": s["faturamento"], "margem": s["margem"]}
+                for s in destaques
+            ],
+            "atencao": [
+                {"nome": s["nome"], "margem": s["margem"], "pct_meta": s["pct_meta"]}
+                for s in atencao
+            ],
+        }
+
+    def _resumo(
+        self, kpis: dict[str, object], by_store: list[dict[str, object]], restantes: int
+    ) -> list[str]:
+        """Bullets calculados (sem IA) — spec C5.3."""
+        out: list[str] = []
+        pct = kpis["pct_meta"]
+        if pct is not None:
+            out.append(f"{float(pct) * 100:.0f}% da meta atingida")  # type: ignore[arg-type]
+        out.append(f"Projeção de fechamento: R$ {float(kpis['projecao']):,.0f}"  # type: ignore[arg-type]
+                   .replace(",", "."))
+
+        com_meta = [s for s in by_store if s["pct_meta"] is not None]
+        if com_meta:
+            melhor = max(com_meta, key=lambda s: float(s["pct_meta"]))  # type: ignore[arg-type]
+            pior = min(com_meta, key=lambda s: float(s["pct_meta"]))  # type: ignore[arg-type]
+            out.append(f"Unidade destaque: {melhor['nome']}")
+            if pior["store_id"] != melhor["store_id"]:
+                out.append(f"Unidade que exige atenção: {pior['nome']}")
+
+        meta = float(kpis["meta"] or 0)  # type: ignore[arg-type]
+        falta = max(meta - float(kpis["faturamento"]), 0.0)  # type: ignore[arg-type]
+        if restantes > 0 and falta > 0:
+            diario = falta / restantes
+            out.append(f"Necessário faturar ~R$ {diario:,.0f}/dia para atingir a meta".replace(",", "."))
+        return out
 
     async def _goals_by_store(self, store_ids: list[str], year: int, month: int) -> dict[str, float]:
         """Meta de faturamento da loja = Σ profitability_goal das origens."""
