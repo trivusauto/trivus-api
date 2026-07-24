@@ -214,6 +214,7 @@ Hoje o filtro de coluna seleciona 1 coluna. Trocar por multi-seleção (ex.: ver
 - Gerente criar equipe: abrir `POST /stores/{store_id}/team` (e o GET) para shop_user com `shop_role=gerente` **da própria loja** (guard: `user.parent_store_id == store_id`). Hoje é `require_roles("admin","client")` em `src/modules/users/interface/router.py`.
 - SDR sem botão: front esconde por papel; backend segue bloqueando.
 - Loja sem empresa — ✅ **DECIDIDO (Opção A): a loja funciona NORMALMENTE sem empresa vinculada.**
+  - ⚠️ **AVISO REGISTRADO (Giovani, 24/07): acesso completo ≠ gratuidade.** Loja sem empresa **SERÁ COBRADA** — a frente financeira (cobrança/billing) será implementada no futuro e deverá alcançar também as lojas sem empresa vinculada. Este item deve constar como requisito quando a frente de cobrança for planejada.
   - `stores.company_id` já é nullable; o que muda é o resolvedor de entitlements (`src/modules/ecosystem/`): quando `company_id IS NULL`, retornar o **conjunto padrão completo** de feature_keys (equivalente ao plano Full — todos os serviços de software), até a loja ser vinculada a uma empresa. A partir do vínculo, passa a valer o plano da assinatura da empresa (inclusive suspensão).
   - Ajustar `store_services.py`: habilitar/desabilitar serviço numa loja sem empresa deixa de lançar o erro "Loja sem empresa vinculada (modo legado)".
   - Testes: loja sem empresa acessa CRM/métricas/marketing normalmente; loja vinculada a assinatura suspensa continua toda bloqueada (regra atual mantida).
