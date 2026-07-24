@@ -4,6 +4,9 @@ from src.modules.metrics.application.dashboard import DashboardUseCase
 from src.modules.metrics.application.projections import ProjectionsUseCase
 from src.modules.metrics.application.reports import ReportUseCase
 from src.modules.metrics.domain.team import build_team_performance
+from src.modules.metrics.infrastructure.marketing_series_reader import (
+    MarketingSeriesReader, previous_window, totals_of,
+)
 from src.modules.metrics.infrastructure.reader import MetricsLeadReader
 from src.modules.metrics.interface.deps import (
     get_accessible_uc, get_dashboard_uc, get_indicators_report_uc,
@@ -15,7 +18,7 @@ from src.shared.domain.errors import DomainError
 from src.shared.infrastructure.database import get_session
 from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
-from src.shared.interface.store_access import require_store_ids_access
+from src.shared.interface.store_access import require_store_access, require_store_ids_access
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -56,6 +59,29 @@ async def dashboard(
     effective = await require_store_ids_access(store_ids=store_ids, user=user, session=session)
     names = {s.id: s.nome_fantasia for s in await stores.list_all()}
     return await uc.execute_multi(effective, start, end, names)
+
+
+@router.get(
+    "/marketing/series",
+    dependencies=[Depends(require_feature("metrics.marketing")), Depends(require_store_access)],
+)
+async def marketing_series(
+    store_id: str = Query(...),
+    from_: str = Query(..., alias="from"),
+    to: str = Query(...),
+    session: AsyncSession = Depends(get_session),
+) -> dict[str, object]:
+    """Série diária + total do período + total da janela anterior (S4.4)."""
+    reader = MarketingSeriesReader(session)
+    days = await reader.days([store_id], from_, to)
+    prev_from, prev_to = previous_window(from_, to)
+    previous_days = await reader.days([store_id], prev_from, prev_to)
+    return {
+        "days": days,
+        "totals": totals_of(days),
+        "previous_totals": totals_of(previous_days),
+        "previous_range": {"from": prev_from, "to": prev_to},
+    }
 
 
 @router.get("/reports")

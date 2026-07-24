@@ -178,3 +178,68 @@ async def test_dashboard_store_id_alheio_403(client: AsyncClient) -> None:
         headers=dono_headers,
     )
     assert negado.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_marketing_series_dias_totais_e_comparativo(client: AsyncClient) -> None:
+    """Série diária + totals + previous_totals da janela anterior (S4.4)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    store = (await client.post(
+        "/admin/stores", json={"nome_fantasia": f"Serie {uuid.uuid4().hex[:6]}"}, headers=headers
+    )).json()
+    sid = store["id"]
+
+    async def lancar(dia: str, leads: int, classificados: int, investimento: float) -> None:
+        res = await client.post("/indicators", json={
+            "store_id": sid, "reference_date": dia, "origin": "receptivo",
+            "total_leads": leads, "classified_leads": classificados,
+            "marketing_investment": investimento,
+        }, headers=headers)
+        assert res.status_code == 201, res.text
+
+    # janela atual: 10 e 11 de julho · janela anterior (8 e 9): só o dia 9
+    await lancar("2026-07-10", 10, 8, 500.0)
+    await lancar("2026-07-11", 6, 4, 300.0)
+    await lancar("2026-07-09", 4, 2, 200.0)
+
+    res = await client.get(
+        f"/metrics/marketing/series?store_id={sid}&from=2026-07-10&to=2026-07-11", headers=headers
+    )
+    assert res.status_code == 200, res.text
+    body = res.json()
+
+    assert [d["date"] for d in body["days"]] == ["2026-07-10", "2026-07-11"]
+    assert body["days"][0]["leads"] == 10
+    assert body["days"][0]["classificados"] == 8
+    assert body["days"][0]["investimento"] == 500.0
+
+    assert body["totals"]["leads"] == 16
+    assert body["totals"]["investimento"] == 800.0
+
+    # janela anterior de mesma duração (2 dias): 08 e 09/07 → só o dia 9 tem dado
+    assert body["previous_range"] == {"from": "2026-07-08", "to": "2026-07-09"}
+    assert body["previous_totals"]["leads"] == 4
+    assert body["previous_totals"]["investimento"] == 200.0
+
+
+@pytest.mark.asyncio
+async def test_marketing_series_loja_alheia_403(client: AsyncClient) -> None:
+    """O guard de loja vale para a série (S4.4)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    minha = (await client.post("/admin/stores", json={"nome_fantasia": "Serie Minha"}, headers=headers)).json()
+    alheia = (await client.post("/admin/stores", json={"nome_fantasia": "Serie Alheia"}, headers=headers)).json()
+
+    email = f"dono_serie_{uuid.uuid4().hex[:8]}@example.com"
+    dono = (await client.post(
+        "/admin/users", json={"email": email, "password": "demo123", "name": "Dono Serie"}, headers=headers
+    )).json()
+    await client.put(f"/admin/users/{dono['id']}/stores",
+                     json={"store_ids": [minha["id"]], "owner_store_ids": [minha["id"]]}, headers=headers)
+    login = await client.post("/auth/login", json={"email": email, "password": "demo123"})
+    dono_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    res = await client.get(
+        f"/metrics/marketing/series?store_id={alheia['id']}&from=2026-07-01&to=2026-07-31",
+        headers=dono_headers,
+    )
+    assert res.status_code == 403
