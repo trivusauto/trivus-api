@@ -112,14 +112,32 @@ async def projections(
     year: int = Query(...),
     month: int = Query(...),
     store_id: str | None = Query(None),
+    store_ids: list[str] = Query(default=[]),
+    user_id: str | None = Query(None),
     user: CurrentUser = Depends(get_current_user),
     uc: ProjectionsUseCase = Depends(get_projections_uc),
     access: GetAccessibleStoreIdsUseCase = Depends(get_accessible_uc),
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
+    users: SqlAlchemyUserRepository = Depends(get_user_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
     if not 1 <= month <= 12:
         raise DomainError("Mês inválido (use 1-12).")
-    return await uc.execute(await _resolve(user, store_id, access, stores), year, month)
+
+    if store_ids:
+        effective_stores = await require_store_ids_access(store_ids=store_ids, user=user, session=session)
+    else:
+        effective_stores = await _resolve(user, store_id, access, stores)
+
+    # ESCOPO IMPOSTO NO BACKEND: shop_user comum só enxerga os próprios números,
+    # mesmo que mande o id de outra pessoa. Gerente/dono/admin escolhem livremente.
+    scoped_user = user_id
+    if user.role == "shop_user":
+        me = await users.get_by_id(user.user_id)
+        if not (me and me.shop_role == "gerente"):
+            scoped_user = user.user_id
+
+    return await uc.execute(effective_stores, year, month, scoped_user)
 
 
 @router.get("/indicators-report", dependencies=[Depends(require_feature("indicators"))])

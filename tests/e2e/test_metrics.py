@@ -1,4 +1,5 @@
 import uuid
+from datetime import date
 
 import pytest
 from httpx import AsyncClient
@@ -243,3 +244,77 @@ async def test_marketing_series_loja_alheia_403(client: AsyncClient) -> None:
         headers=dono_headers,
     )
     assert res.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_projecoes_sdr_forcado_ao_proprio_escopo(client: AsyncClient) -> None:
+    """SDR comum recebe só os PRÓPRIOS números mesmo passando o id de outro (S4.9)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    sid, stage = await _store_com_funil(client, headers, f"Proj {uuid.uuid4().hex[:6]}")
+
+    async def team(nome: str, role: str) -> tuple[str, dict[str, str]]:
+        email = f"{role}_{uuid.uuid4().hex[:8]}@example.com"
+        u = (await client.post(f"/stores/{sid}/team", json={
+            "email": email, "password": "demo123", "name": nome, "shop_role": role,
+        }, headers=headers)).json()
+        login = await client.post("/auth/login", json={"email": email, "password": "demo123"})
+        return u["id"], {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    sdr_id, sdr_headers = await team("SDR Proj", "sdr")
+    outro_id, _ = await team("Outro Proj", "vendedor")
+
+    hoje = date.today()
+    # 1 lead do SDR, 2 do colega
+    for nome, dono in (("MEU", sdr_id), ("ALHEIO_1", outro_id), ("ALHEIO_2", outro_id)):
+        await client.post("/crm/leads", json={
+            "store_id": sid, "stage_id": stage, "funil": "receptivo",
+            "nome": nome, "telefone": "(11) 90000-0000", "assigned_to": dono,
+        }, headers=headers)
+
+    def leads_de(body: dict[str, object]) -> float:
+        metrics = body["metrics"]  # type: ignore[index]
+        return float(next(m for m in metrics if m["key"] == "leads")["actual"])  # type: ignore[index]
+
+    qs = f"year={hoje.year}&month={hoje.month}&store_id={sid}"
+
+    # admin vê os 3
+    todos = (await client.get(f"/metrics/projections?{qs}", headers=headers)).json()
+    assert leads_de(todos) == 3
+
+    # SDR vê só o próprio...
+    meu = (await client.get(f"/metrics/projections?{qs}", headers=sdr_headers)).json()
+    assert leads_de(meu) == 1
+
+    # ...e continua vendo só o próprio ao tentar passar o id do colega
+    tentativa = (await client.get(
+        f"/metrics/projections?{qs}&user_id={outro_id}", headers=sdr_headers
+    )).json()
+    assert leads_de(tentativa) == 1, "o backend ignora o user_id enviado por shop_user comum"
+
+
+@pytest.mark.asyncio
+async def test_projecoes_por_origem_e_classificados(client: AsyncClient) -> None:
+    """A resposta separa por origem e inclui a métrica classified (S4.9)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    sid, stage = await _store_com_funil(client, headers, f"ProjOrig {uuid.uuid4().hex[:6]}")
+
+    for nome, funil in (("R1", "receptivo"), ("R2", "receptivo"), ("P1", "prospeccao_ativa")):
+        await client.post("/crm/leads", json={
+            "store_id": sid, "stage_id": stage, "funil": funil,
+            "nome": nome, "telefone": "(11) 90000-0000",
+        }, headers=headers)
+
+    hoje = date.today()
+    body = (await client.get(
+        f"/metrics/projections?year={hoje.year}&month={hoje.month}&store_id={sid}", headers=headers
+    )).json()
+
+    assert any(m["key"] == "classified" for m in body["metrics"]), "classificados entra nas projeções"
+    assert set(body["by_origin"]) == {"receptivo", "prospeccao", "outros"}
+
+    def leads(bloco: list[dict[str, object]]) -> float:
+        return float(next(m for m in bloco if m["key"] == "leads")["actual"])
+
+    assert leads(body["by_origin"]["receptivo"]) == 2
+    assert leads(body["by_origin"]["prospeccao"]) == 1
+    assert leads(body["total"]) == 3

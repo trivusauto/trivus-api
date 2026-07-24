@@ -1,6 +1,10 @@
 from datetime import date, datetime
 from typing import TypedDict
 
+from src.modules.metrics.domain.attribution import (
+    owns_attendance, owns_closing, owns_lead, owns_scheduling,
+)
+
 
 def to_local_ymd(iso: object) -> str | None:
     if not iso:
@@ -64,24 +68,33 @@ class _OriginStats(TypedDict):
 
 def aggregate_totals_for_range(
     leads: list[dict[str, object]], start: str, end: str, passed_qualificados: object = None,
-    passed_classificados: object = None,
+    passed_classificados: object = None, user_id: str | None = None,
 ) -> dict[str, object]:
+    """Totais do período. Com `user_id`, conta apenas o que é atribuível àquele
+    colaborador — cada etapa tem dono diferente (ver `domain/attribution.py`)."""
     t = _Totals(
         total_leads=0, classified_leads=0, qualified_leads=0, scheduled=0,
         attended=0, conversions=0, total_revenue=0.0,
     )
     for lead in leads:
-        if ymd_in_range(to_local_ymd(lead.get("created_at")), start, end):
+        if (user_id is None or owns_lead(lead, user_id)) \
+                and ymd_in_range(to_local_ymd(lead.get("created_at")), start, end):
             t["total_leads"] += 1
             if callable(passed_classificados) and passed_classificados(lead):
                 t["classified_leads"] += 1
             if callable(passed_qualificados) and passed_qualificados(lead):
                 t["qualified_leads"] += 1
-        if _has_appointment(lead) and ymd_in_range(_schedule_marked_ymd(lead), start, end):
+        if (user_id is None or owns_scheduling(lead, user_id)) \
+                and _has_appointment(lead) \
+                and ymd_in_range(_schedule_marked_ymd(lead), start, end):
             t["scheduled"] += 1
-        if lead.get("compareceu_agendamento") is True and ymd_in_range(date_col_to_ymd(lead.get("data_compareceu")), start, end):
+        if (user_id is None or owns_attendance(lead, user_id)) \
+                and lead.get("compareceu_agendamento") is True \
+                and ymd_in_range(date_col_to_ymd(lead.get("data_compareceu")), start, end):
             t["attended"] += 1
-        if lead.get("fechou_negocio") is True and ymd_in_range(date_col_to_ymd(lead.get("data_fechou_negocio")), start, end):
+        if (user_id is None or owns_closing(lead, user_id)) \
+                and lead.get("fechou_negocio") is True \
+                and ymd_in_range(date_col_to_ymd(lead.get("data_fechou_negocio")), start, end):
             t["conversions"] += 1
             r = lead.get("rentabilidade")
             if r is not None:
