@@ -15,6 +15,7 @@ from src.shared.domain.errors import DomainError
 from src.shared.infrastructure.database import get_session
 from src.shared.interface.feature_gate import require_feature
 from src.shared.interface.auth_deps import CurrentUser, get_current_user
+from src.shared.interface.store_access import require_store_ids_access
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/metrics", tags=["metrics"])
@@ -39,14 +40,22 @@ async def _resolve(
 @router.get("/dashboard")
 async def dashboard(
     store_id: str | None = Query(None),
+    store_ids: list[str] = Query(default=[]),
     start: str = Query(...),
     end: str = Query(...),
     user: CurrentUser = Depends(get_current_user),
     uc: DashboardUseCase = Depends(get_dashboard_uc),
     access: GetAccessibleStoreIdsUseCase = Depends(get_accessible_uc),
     stores: SqlAlchemyStoreRepository = Depends(get_store_repo),
+    session: AsyncSession = Depends(get_session),
 ) -> dict[str, object]:
-    return await uc.execute(await _resolve(user, store_id, access, stores), start, end)
+    # Sem store_ids a resposta é a de sempre ({totals, monthly}) — compat.
+    if not store_ids:
+        return await uc.execute(await _resolve(user, store_id, access, stores), start, end)
+
+    effective = await require_store_ids_access(store_ids=store_ids, user=user, session=session)
+    names = {s.id: s.nome_fantasia for s in await stores.list_all()}
+    return await uc.execute_multi(effective, start, end, names)
 
 
 @router.get("/reports")

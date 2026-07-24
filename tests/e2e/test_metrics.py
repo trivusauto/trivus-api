@@ -1,3 +1,5 @@
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -89,3 +91,90 @@ async def test_dashboard_conta_classificados(client: AsyncClient) -> None:
     assert "classified_leads" in totals, "o funil precisa expor a etapa CLASSIFICADOS"
     assert totals["total_leads"] == 1
     assert totals["classified_leads"] == 1
+
+
+async def _store_com_funil(client: AsyncClient, headers: dict[str, str], nome: str) -> tuple[str, str]:
+    await client.post("/admin/crm/templates", json={"name": f"tpl-{nome}", "stages": ["RECEBIDOS"]}, headers=headers)
+    store = (await client.post("/admin/stores", json={"nome_fantasia": nome}, headers=headers)).json()
+    await client.patch(f"/admin/stores/{store['id']}", json={"crm_enabled": True}, headers=headers)
+    funnel = (await client.get(f"/crm/funnels?store_id={store['id']}", headers=headers)).json()[0]
+    return store["id"], funnel["stages"][0]["id"]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_multi_loja_consolida_e_separa(client: AsyncClient) -> None:
+    """store_ids devolve consolidated + by_store; consolidado é a soma (S4.2)."""
+    token = await _admin_token(client)
+    headers = {"Authorization": f"Bearer {token}"}
+
+    sid_a, stage_a = await _store_com_funil(client, headers, f"Multi A {uuid.uuid4().hex[:6]}")
+    sid_b, stage_b = await _store_com_funil(client, headers, f"Multi B {uuid.uuid4().hex[:6]}")
+
+    for i in range(2):
+        await client.post("/crm/leads", json={
+            "store_id": sid_a, "stage_id": stage_a, "funil": "receptivo",
+            "nome": f"A{i}", "telefone": "(11) 90000-0000",
+        }, headers=headers)
+    await client.post("/crm/leads", json={
+        "store_id": sid_b, "stage_id": stage_b, "funil": "receptivo",
+        "nome": "B0", "telefone": "(11) 90000-0001",
+    }, headers=headers)
+
+    qs = f"store_ids={sid_a}&store_ids={sid_b}&start=2026-01-01&end=2026-12-31"
+    res = await client.get(f"/metrics/dashboard?{qs}", headers=headers)
+    assert res.status_code == 200, res.text
+    body = res.json()
+
+    assert body["consolidated"]["totals"]["total_leads"] == 3
+    por_loja = {b["store_id"]: b for b in body["by_store"]}
+    assert por_loja[sid_a]["totals"]["total_leads"] == 2
+    assert por_loja[sid_b]["totals"]["total_leads"] == 1
+    assert por_loja[sid_a]["store_name"].startswith("Multi A")
+
+    # a soma das lojas bate com o consolidado
+    soma = sum(b["totals"]["total_leads"] for b in body["by_store"])
+    assert soma == body["consolidated"]["totals"]["total_leads"]
+
+
+@pytest.mark.asyncio
+async def test_dashboard_sem_store_ids_mantem_formato_antigo(client: AsyncClient) -> None:
+    """Compat: sem store_ids a resposta continua {totals, monthly} (S4.2)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    store = (await client.post("/admin/stores", json={"nome_fantasia": "Compat"}, headers=headers)).json()
+    res = await client.get(
+        f"/metrics/dashboard?store_id={store['id']}&start=2026-01-01&end=2026-12-31", headers=headers
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert "totals" in body and "monthly" in body
+    assert "consolidated" not in body
+
+
+@pytest.mark.asyncio
+async def test_dashboard_store_id_alheio_403(client: AsyncClient) -> None:
+    """Loja fora do escopo derruba a requisição inteira (S4.2)."""
+    headers = {"Authorization": f"Bearer {await _admin_token(client)}"}
+    minha = (await client.post("/admin/stores", json={"nome_fantasia": "Dono Minha"}, headers=headers)).json()
+    alheia = (await client.post("/admin/stores", json={"nome_fantasia": "Dono Alheia"}, headers=headers)).json()
+
+    email = f"dono_multi_{uuid.uuid4().hex[:8]}@example.com"
+    dono = (await client.post(
+        "/admin/users", json={"email": email, "password": "demo123", "name": "Dono Multi"}, headers=headers
+    )).json()
+    await client.put(f"/admin/users/{dono['id']}/stores",
+                     json={"store_ids": [minha["id"]], "owner_store_ids": [minha["id"]]}, headers=headers)
+
+    login = await client.post("/auth/login", json={"email": email, "password": "demo123"})
+    dono_headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
+
+    ok = await client.get(
+        f"/metrics/dashboard?store_ids={minha['id']}&start=2026-01-01&end=2026-12-31", headers=dono_headers
+    )
+    assert ok.status_code == 200, ok.text
+
+    negado = await client.get(
+        f"/metrics/dashboard?store_ids={minha['id']}&store_ids={alheia['id']}"
+        "&start=2026-01-01&end=2026-12-31",
+        headers=dono_headers,
+    )
+    assert negado.status_code == 403
