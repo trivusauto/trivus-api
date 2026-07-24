@@ -1,3 +1,5 @@
+from calendar import monthrange
+from datetime import date
 from typing import cast
 
 from src.modules.marketing.domain.cost_funnel import build_cost_funnel
@@ -5,9 +7,21 @@ from src.modules.metrics.domain.metrics_core import (
     aggregate_totals_for_range, normalize_funil_key, to_local_ymd, traffic_light, ymd_in_range,
 )
 
-_GOAL_FIELD = {"leads": "leads_quantity", "qualified": "qualified_quantity",
+_GOAL_FIELD = {"leads": "leads_quantity", "classified": "classified_quantity",
+               "qualified": "qualified_quantity",
                "scheduled": "scheduled_quantity", "attended": "attended_quantity",
                "sales": "conversions_quantity"}
+
+
+def _period_ratio(start: str, end: str) -> float:
+    """Fração do mês coberta pelo período — a meta mensal é rateada por ela (S4.7).
+
+    Mês cheio → 1.0. Ex.: 1–15 de julho (31 dias) → 15/31.
+    """
+    s, e = date.fromisoformat(start), date.fromisoformat(end)
+    days_in_period = (e - s).days + 1
+    days_in_month = monthrange(s.year, s.month)[1]
+    return min(days_in_period / days_in_month, 1.0)
 
 
 class MarketingFunnelUseCase:
@@ -63,12 +77,14 @@ class MarketingFunnelUseCase:
         goals = await self._goals.list(store_ids[0], int(start[:4]), int(start[5:7]))
         receptivo_goal: dict[str, object] = next(
             (g for g in goals if g.get("origin") == "receptivo"), {})
+        ratio = _period_ratio(start, end)
         for st in stages:
             field = _GOAL_FIELD.get(str(st["stage"]))
-            goal = float(receptivo_goal.get(field) or 0) if field else 0.0  # type: ignore[arg-type]
+            monthly = float(receptivo_goal.get(field) or 0) if field else 0.0  # type: ignore[arg-type]
+            goal = monthly * ratio           # meta rateada pelos dias do período
             qty = float(cast(int, st["quantity"]))
             st["goal"] = goal or None
             st["pct_of_goal"] = (qty / goal * 100) if goal > 0 else None
             st["light"] = traffic_light(qty, goal)
-        inv_goal = float(receptivo_goal.get("marketing_investment_goal") or 0)  # type: ignore[arg-type]
+        inv_goal = float(receptivo_goal.get("marketing_investment_goal") or 0) * ratio  # type: ignore[arg-type]
         funnel["investment_goal"] = inv_goal or None
