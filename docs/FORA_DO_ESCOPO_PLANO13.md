@@ -67,6 +67,25 @@ antes de uma demo. (Vou rodar antes do smoke final do S7.1.)
 
 ---
 
+## 5. Outros inserts com UNIQUE ainda podem virar 500
+
+**Onde:** `trivus-api/src/modules/` — qualquer use case que insira em coluna `UNIQUE`
+sem checar antes.
+
+**O que é:** no S3.6 descobri que criar colaborador com e-mail repetido estourava
+`IntegrityError` e virava **500**, violando a regra "input inválido → 4xx, nunca 500".
+Corrigi **dentro do escopo** (o `CreateTeamUserUseCase` agora checa `get_by_email`
+antes de inserir e levanta `DomainError`), o que também conserta o
+`POST /stores/{id}/team` que já tinha o mesmo defeito.
+
+**O que ficou de fora:** não auditei os **demais** inserts do sistema com constraint
+UNIQUE (campanhas, templates de funil, empresas…). Podem ter o mesmo problema.
+
+**O que eu faria:** um handler global de `IntegrityError` → 409 como rede de segurança,
+somado à checagem explícita onde a mensagem para o usuário importa.
+
+---
+
 ## 4. Lead nunca movido não tem histórico de etapa
 
 **Onde:** `trivus-api/src/modules/crm/application/` — criação de lead.

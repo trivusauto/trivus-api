@@ -8,6 +8,8 @@ from src.modules.stores.application.list_stores import ListStoresUseCase
 from src.modules.stores.application.role_labels import GetRoleLabelsUseCase, SetRoleLabelsUseCase
 from src.modules.stores.application.update_store import UpdateStoreUseCase
 from src.modules.stores.infrastructure.repository import SqlAlchemyStoreRepository
+from src.modules.users.application.create_team_user import CreateTeamUserUseCase
+from src.modules.users.interface.deps import get_create_team_uc
 from src.shared.infrastructure.database import get_session
 
 
@@ -23,8 +25,11 @@ def get_list_stores_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> List
     return ListStoresUseCase(repo)
 
 
-def get_create_store_uc(repo: SqlAlchemyStoreRepository = Depends(_repo)) -> CreateStoreUseCase:
-    return CreateStoreUseCase(repo)
+def get_create_store_uc(
+    repo: SqlAlchemyStoreRepository = Depends(_repo),
+    team: CreateTeamUserUseCase = Depends(get_create_team_uc),
+) -> CreateStoreUseCase:
+    return CreateStoreUseCase(repo, team)
 
 
 def get_update_store_uc(

@@ -8,8 +8,17 @@ from src.shared.domain.errors import DomainError
 
 
 class FakeUserRepo:
-    def __init__(self) -> None:
+    def __init__(self, existing_email: str | None = None) -> None:
         self.created: dict[str, object] | None = None
+        self._existing_email = existing_email
+
+    async def get_by_email(self, email: str) -> User | None:
+        if email != self._existing_email:
+            return None
+        return User(
+            id="u0", email=email, name="Existente", role="shop_user",
+            parent_store_id="s1", active=True, password_hash="x",
+        )
 
     async def create(self, data: dict[str, object]) -> User:
         self.created = data
@@ -51,3 +60,14 @@ async def test_assign_stores_replaces_links() -> None:
 async def test_assign_stores_requires_one() -> None:
     with pytest.raises(DomainError):
         await AssignStoresUseCase(FakeAccessRepo()).execute("u1", [], [])  # type: ignore[arg-type]
+
+
+async def test_create_team_user_recusa_email_duplicado() -> None:
+    """E-mail já usado vira DomainError (4xx), não IntegrityError (500)."""
+    repo = FakeUserRepo(existing_email="ja@existe.com")
+    uc = CreateTeamUserUseCase(repo, Argon2PasswordHasher())  # type: ignore[arg-type]
+    with pytest.raises(DomainError):
+        await uc.execute(CreateTeamUserInput(
+            email="ja@existe.com", password="segredo1", name="Dup", store_id="s1",
+        ))
+    assert repo.created is None

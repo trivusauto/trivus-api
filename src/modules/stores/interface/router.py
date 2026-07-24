@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Body, Depends
 
 from src.modules.stores.application.create_store import CreateStoreUseCase
-from src.modules.stores.application.dto import CreateStoreInput
+from src.modules.stores.application.dto import CreateStoreInput, ManagerInput
 from src.modules.stores.application.list_stores import ListStoresUseCase
 from src.modules.stores.application.role_labels import GetRoleLabelsUseCase, SetRoleLabelsUseCase
 from src.modules.stores.application.update_store import UpdateStoreUseCase
@@ -53,6 +53,10 @@ async def create_store(
     data = CreateStoreInput(
         nome_fantasia=body.nome_fantasia,
         fields={"razao_social": body.razao_social, "cnpj": body.cnpj},
+        managers=[
+            ManagerInput(email=str(m.email), password=m.password, name=m.name)
+            for m in body.managers
+        ],
     )
     return _resp(await uc.execute(data))
 
