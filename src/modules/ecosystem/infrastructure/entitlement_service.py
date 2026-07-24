@@ -26,7 +26,18 @@ class EntitlementService:
         if store is None:
             return set()
         if store.company_id is None:
-            return set(ALL_FEATURE_KEYS)          # E6: loja legada (pré-ETL) = sem gate
+            # Loja sem empresa: acesso completo temporário — NÃO é isenção. A frente de
+            # cobrança (futura) deve cobrar também lojas sem empresa (decisão Giovani
+            # 24/07, ver AJUSTES_POS_REUNIAO_CLIENTE.md item 11).
+            # União das feature_keys de todos os serviços de software ativos; se o
+            # catálogo estiver vazio, cai no registro completo (equivalente ao Full).
+            services = await self._services.list_all(only_active=True)
+            union = {
+                str(k)
+                for svc in services
+                for k in cast(list[str], svc.get("feature_keys") or [])
+            }
+            return union or set(ALL_FEATURE_KEYS)
         sub = await self._subs.current_for_company(str(store.company_id))
         if sub is None:
             return set()                          # E3: sem assinatura = tudo bloqueado

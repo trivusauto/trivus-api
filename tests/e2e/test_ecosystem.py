@@ -97,3 +97,53 @@ async def test_legacy_store_not_gated(client) -> None:  # type: ignore[no-untype
     store = (await client.post("/admin/stores", json={"nome_fantasia": "Legada"}, headers=h)).json()
     ent = (await client.get(f"/ecosystem/my-entitlements?store_id={store['id']}", headers=h)).json()
     assert "agenda" in ent["feature_keys"] and "crm.kanban" in ent["feature_keys"]
+
+
+@pytest.mark.asyncio
+async def test_loja_sem_empresa_opera_normalmente(client) -> None:  # type: ignore[no-untyped-def]
+    """S3.8 (Opção A): loja sem empresa acessa CRM, métricas e campanhas."""
+    h = await _admin(client)
+    store = (await client.post("/admin/stores", json={"nome_fantasia": "Sem Empresa"}, headers=h)).json()
+    sid = store["id"]
+
+    assert (await client.get(f"/crm/leads?store_id={sid}", headers=h)).status_code == 200
+    assert (await client.get(
+        f"/metrics/dashboard?store_id={sid}&start=2026-01-01&end=2026-12-31", headers=h
+    )).status_code == 200
+    assert (await client.get(f"/campaigns?store_id={sid}", headers=h)).status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_loja_sem_empresa_liga_servico(client) -> None:  # type: ignore[no-untyped-def]
+    """S3.8: ligar serviço numa loja sem empresa não lança mais o erro de modo legado."""
+    h = await _admin(client)
+    suffix = uuid.uuid4().hex[:6]
+    svc = (await client.post("/admin/services", json={
+        "key": f"svc_sem_empresa_{suffix}", "name": "Serviço X", "type": "software",
+        "what_it_is": "x", "upsell_pitch": "x", "feature_keys": ["goals"]}, headers=h)).json()
+    store = (await client.post("/admin/stores", json={"nome_fantasia": "Sem Empresa Toggle"}, headers=h)).json()
+
+    res = await client.put(f"/admin/stores/{store['id']}/services",
+                           json={"service_key": svc["key"], "enabled": True}, headers=h)
+    assert res.status_code == 200, res.text
+
+
+@pytest.mark.asyncio
+async def test_empresa_suspensa_continua_bloqueada(client) -> None:  # type: ignore[no-untyped-def]
+    """S3.8: liberar loja SEM empresa não afrouxa loja COM empresa suspensa."""
+    h = await _admin(client)
+    suffix = uuid.uuid4().hex[:6]
+
+    svc = (await client.post("/admin/services", json={
+        "key": f"svc_susp_{suffix}", "name": "CRM", "type": "software",
+        "what_it_is": "x", "upsell_pitch": "x", "feature_keys": ["crm.kanban"]}, headers=h)).json()
+    plan = (await client.post("/admin/plans", json={
+        "key": f"plan_susp_{suffix}", "name": "Plano", "service_keys": [svc["key"]]}, headers=h)).json()
+    company = (await client.post("/admin/companies", json={"name": f"Suspensa {suffix}"}, headers=h)).json()
+    store = (await client.post("/admin/stores", json={"nome_fantasia": f"Loja Susp {suffix}"}, headers=h)).json()
+    await client.patch(f"/admin/stores/{store['id']}", json={"company_id": company["id"]}, headers=h)
+    await client.post("/admin/subscriptions", json={
+        "company_id": company["id"], "plan_id": plan["id"], "status": "suspended"}, headers=h)
+
+    ent = (await client.get(f"/ecosystem/my-entitlements?store_id={store['id']}", headers=h)).json()
+    assert ent["feature_keys"] == [], "assinatura suspensa continua bloqueando tudo"

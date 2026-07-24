@@ -15,7 +15,11 @@ class ToggleStoreServiceUseCase:
         if enabled:
             company_id = await self._company_stores.store_company(store_id)
             if company_id is None:
-                raise DomainError("Loja sem empresa vinculada (modo legado) — vincule a uma empresa antes.")
+                # Loja sem empresa: acesso completo temporário — NÃO é isenção. A frente
+                # de cobrança (futura) deve cobrar também lojas sem empresa (decisão
+                # Giovani 24/07, ver AJUSTES_POS_REUNIAO_CLIENTE.md item 11).
+                await self._store_services.set_service(store_id, service_key, enabled)
+                return
             sub = await self._subs.current_for_company(company_id)
             if sub is None:
                 raise DomainError("Empresa sem assinatura.")
